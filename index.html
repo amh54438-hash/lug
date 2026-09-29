@@ -64,7 +64,7 @@
 <button id="burger" aria-expanded="true" aria-controls="ui">✕</button>
 <div id="ui">
   <h1>Город у 3D</h1>
-  <div class="sub">Ділянка 9,14 сотки · рельєф Copernicus, крони Meta CHM, будівлі Microsoft ML, висоти уточнені по фото 28.09</div>
+  <div class="sub">Ділянка 9,14 сотки · рельєф Copernicus, крони Meta CHM, будівлі Microsoft ML, висоти уточнені по фото 28.09 · помаранчева лінія — траншея DC-кабелю, зелені конуси — штирі заземлення, жовтий блок — ввід/інвертор, сірий пунктир — відгалуження до 4-го стола</div>
   <label>Дата: <b id="dl" class="val"></b></label>
   <input type="range" id="doy" min="1" max="365" value="172">
   <input type="date" id="dpick" min="2026-01-01" max="2026-12-31" value="2026-06-21">
@@ -266,6 +266,35 @@ function buildTable(t, ghost){
 }
 TABLES.forEach(function(t){ buildTable(t,false); });
 buildTable(T4,true);
+
+
+/* ---------- траса кабелю і заземлення ---------- */
+(function(){
+  var order=TABLES.map(function(t,i){return {i:i,t:t};}).sort(function(a,b){return Math.hypot(b.t.x,b.t.y)-Math.hypot(a.t.x,a.t.y);});
+  var nodes=order.map(function(o){ return {w:[o.t.x-4.007,o.t.y+0.844], e:[o.t.x+4.093,o.t.y+0.844]}; });
+  var path=[];
+  nodes.forEach(function(n,k){ if(k===0) path.push(n.w); else { path.push(n.e); path.push(n.w); } });
+  path.push([0,0]);
+  var pts=[];
+  for(var k=0;k<path.length-1;k++){
+    var a=path[k], b=path[k+1], L=Math.hypot(b[0]-a[0],b[1]-a[1]), n=Math.max(2,Math.ceil(L));
+    for(var j=0;j<=n;j++){ var x=a[0]+(b[0]-a[0])*j/n, y=a[1]+(b[1]-a[1])*j/n; pts.push(new THREE.Vector3(x, ground(x,y)+0.18, -y)); }
+  }
+  scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({color:0xff8c42})));
+  var boxM=new THREE.MeshStandardMaterial({color:0xff8c42, roughness:0.7});
+  nodes.forEach(function(n,k){ var b=(k<nodes.length-1)?n.w:n.e; var m=new THREE.Mesh(new THREE.BoxGeometry(0.35,0.45,0.2), boxM); m.position.set(b[0], ground(b[0],b[1])+0.9, -b[1]); m.castShadow=true; scene.add(m); });
+  var rodM=new THREE.MeshStandardMaterial({color:0x52c07a, roughness:0.6});
+  [nodes[0].w, [0,0]].forEach(function(p){
+    var r=new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.06,2.4,6), rodM); r.position.set(p[0], ground(p[0],p[1])-0.9, -p[1]); scene.add(r);
+    var c=new THREE.Mesh(new THREE.ConeGeometry(0.25,0.4,8), rodM); c.position.set(p[0], ground(p[0],p[1])+0.5, -p[1]); scene.add(c);
+  });
+  var s4=[T4.x+4.093,T4.y+0.844], e1=nodes[nodes.length-1].e, sp=[];
+  for(var j=0;j<=14;j++){ var x=s4[0]+(e1[0]-s4[0])*j/14, y=s4[1]+(e1[1]-s4[1])*j/14; sp.push(new THREE.Vector3(x, ground(x,y)+0.18, -y)); }
+  var spl=new THREE.Line(new THREE.BufferGeometry().setFromPoints(sp), new THREE.LineDashedMaterial({color:0x9aa3ad, dashSize:0.8, gapSize:0.6}));
+  spl.computeLineDistances(); scene.add(spl);
+  var inv=new THREE.Mesh(new THREE.BoxGeometry(0.5,0.7,0.25), new THREE.MeshStandardMaterial({color:0xf5c518}));
+  inv.position.set(0, ground(0,0)+1.2, 0); scene.add(inv);
+})();
 
 /* межа городу лінією */
 var pts=PLOT.map(function(p){ return new THREE.Vector3(p[0], ground(p[0],p[1])+0.25, -p[1]); });
