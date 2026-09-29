@@ -64,7 +64,7 @@
 <button id="burger" aria-expanded="true" aria-controls="ui">✕</button>
 <div id="ui">
   <h1>Город у 3D</h1>
-  <div class="sub">Ділянка 9,14 сотки · рельєф Copernicus, крони Meta CHM, будівлі Microsoft ML, висоти уточнені по фото 28.09 · помаранчева лінія — траншея DC-кабелю, зелені конуси — штирі заземлення, жовтий блок — ввід/інвертор, сірий пунктир — відгалуження до 4-го стола</div>
+  <div class="sub">Ділянка 9,14 сотки · рельєф Copernicus, крони Meta CHM, будівлі Microsoft ML, висоти уточнені по фото 28.09 · помаранчева лінія — траншея DC-кабелю, зелені конуси — штирі заземлення, жовтий блок — ввід/інвертор, сірий пунктир — відгалуження до 4-го стола, світлі стояки — закладні Ø32, зелені лінії — перемички по палях</div>
   <label>Дата: <b id="dl" class="val"></b></label>
   <input type="range" id="doy" min="1" max="365" value="172">
   <input type="date" id="dpick" min="2026-01-01" max="2026-12-31" value="2026-06-21">
@@ -292,6 +292,15 @@ buildTable(T4,true);
   for(var j=0;j<=14;j++){ var x=s4[0]+(e1[0]-s4[0])*j/14, y=s4[1]+(e1[1]-s4[1])*j/14; sp.push(new THREE.Vector3(x, ground(x,y)+0.18, -y)); }
   var spl=new THREE.Line(new THREE.BufferGeometry().setFromPoints(sp), new THREE.LineDashedMaterial({color:0x9aa3ad, dashSize:0.8, gapSize:0.6}));
   spl.computeLineDistances(); scene.add(spl);
+  /* стояки-закладні Ø32 і перемички по палях */
+  var stubM=new THREE.MeshStandardMaterial({color:0xd0d4da, roughness:0.5});
+  var stubs=[nodes[0].w, nodes[1]?nodes[1].w:null, nodes[nodes.length-1].e, s4].filter(Boolean);
+  stubs.forEach(function(p){ var c=new THREE.Mesh(new THREE.CylinderGeometry(0.04,0.04,1.2,6), stubM); c.position.set(p[0]+0.3, ground(p[0],p[1])-0.1, -p[1]); scene.add(c); });
+  var jM=new THREE.LineBasicMaterial({color:0x52c07a});
+  TABLES.forEach(function(t){ var g0=ground(t.x,t.y);
+    [0.844,3.444].forEach(function(v){ var pts=[0,2.7,5.4,8.1].map(function(u){ return new THREE.Vector3(t.x-(u-4.65+0.557), g0+0.5, -(t.y+v)); }); scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), jM)); });
+    [0,8.1].forEach(function(u){ var x=t.x-(u-4.65+0.557); scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(x,g0+0.5,-(t.y+0.844)),new THREE.Vector3(x,g0+0.5,-(t.y+3.444))]), jM)); });
+  });
   var inv=new THREE.Mesh(new THREE.BoxGeometry(0.5,0.7,0.25), new THREE.MeshStandardMaterial({color:0xf5c518}));
   inv.position.set(0, ground(0,0)+1.2, 0); scene.add(inv);
 })();
