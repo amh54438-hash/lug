@@ -125,9 +125,10 @@ function canopy(x,y){
   if(i<0||j<0||i>=CN.nx||j>=CN.ny) return 0;
   return CN.h[j*CN.nx+i];
 }
-var PLOT=[[13.2,44.6],[26.4,32.2],[-15.3,-4.7],[-23.5,10.1]];
-var TABLES=[{x:-5.5,y:17},{x:4.5,y:26.5},{x:13.5,y:34.5}];
-var T4={x:-15.5,y:8};
+var PLOT=[[12.46, 45.29], [26.4, 32.2], [-15.3, -4.7], [-23.5, 10.1], [-15.12, 26.04]];   /* 03.10: бік річки = початок схилу, 1,30 м за А–Г */
+var TABLES=[{x:8.12,y:34.43},{x:-0.12,y:28.68},{x:-8.35,y:22.93}];   /* план v4, 03.10.2026 */
+var RECT=[[10.23,42.14],[15.95,33.94],[-8.65,16.77],[-14.37,24.97]];   /* А Б В Г */
+var T4={x:-15.5,y:8};   /* резерв 4-го стола (у продовження ряду v4 не влазить у межу) */
 var BLD=[{x:14.8,y:2.8,w:11.8,l:12.5,az:149,h:8,c:0xb9a48c},
          {x:-0.4,y:-2.9,w:17.7,l:5.9,az:137,h:8,c:0xa89880},
          {x:-43.8,y:-24.9,w:21,l:12.9,az:126,h:6,c:0xa89880}];
@@ -236,9 +237,9 @@ list.forEach(function(t,k){
 scene.add(tr); scene.add(cr);
 
 /* ---------- дерева, знайдені на фото 02–03.10.2026 (сітка точок з висоти 65 см) ---------- */
-var PHOTO=[{id:"apple",parts:[[25,32.5]],r:4,h:8.5,round:true},
-           {id:"acacia",parts:[[-17.9, -12.7], [-15.1, -13.9], [-12.4, -15.1], [-9.6, -16.3]],r:2.8,h:19,leafy:true},
-           {id:"easthouse",parts:[[27.7, 1.4], [34.0, -2.2], [40.3, -5.8]],r:4.5,h:17,leafy:true}];
+var PHOTO=[{id:"apple",parts:[[22.28, 32.74]],r:4,h:8.5,round:true},
+           {id:"acacia",parts:[[-20.62, -12.46], [-17.82, -13.66], [-15.12, -14.86], [-12.32, -16.06]],r:2.8,h:19,leafy:true},
+           {id:"easthouse",parts:[[24.98, 1.64], [31.28, -1.96], [37.58, -5.56]],r:4.5,h:17,leafy:true}];
 var phObj={};
 PHOTO.forEach(function(t){
   var grp=new THREE.Group();
@@ -337,6 +338,13 @@ buildTable(T4,true);
   inv.position.set(0, ground(0,0)+1.2, 0); scene.add(inv);
 })();
 
+/* прямокутник АБВГ плану v4; синім — лінія А–Г (вісь задніх ніжок) */
+(function(){
+  var p=RECT.concat([RECT[0]]).map(function(q){ return new THREE.Vector3(q[0], ground(q[0],q[1])+0.3, -q[1]); });
+  scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(p), new THREE.LineBasicMaterial({color:0xff9f43})));
+  var ag=[RECT[0],RECT[3]].map(function(q){ return new THREE.Vector3(q[0], ground(q[0],q[1])+0.32, -q[1]); });
+  scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(ag), new THREE.LineBasicMaterial({color:0x4aa3ff})));
+})();
 /* межа городу лінією */
 var pts=PLOT.map(function(p){ return new THREE.Vector3(p[0], ground(p[0],p[1])+0.25, -p[1]); });
 pts.push(pts[0].clone());
