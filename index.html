@@ -148,7 +148,7 @@ var LAYOUTS={
   free:{name:"вільна", t:[{"x":10.13,"y":27.44},{"x":-0.03,"y":28.88},{"x":-10.12,"y":20.62}], kwh:"30 240 кВт·год/рік + ~1 730 задня сторона ≈ 32 000 (межі лицевої 29 520–30 870)"}};
 var TABLES=LAYOUTS.v4.t.slice();   /* план v4, 03.10.2026; оптимальна — за 8 точками фото, 03.10.2026 */
 var RECT=[[10.23,42.14],[15.95,33.94],[-8.65,16.77],[-14.37,24.97]];   /* А Б В Г */
-var T4={x:-15.5,y:8};   /* резерв 4-го стола (у продовження ряду v4 не влазить у межу) */
+var T4={x:9.55,y:22.15};   /* резерв 4-го стола: у координатах плану X=12, Y=16 (+10 670 кВт·год/рік) */
 var BLD=[{x:14.8,y:2.8,w:11.8,l:12.5,az:149,h:8,c:0xb9a48c},
          {x:-0.4,y:-2.9,w:17.7,l:5.9,az:137,h:8,c:0xa89880},
          {x:-43.8,y:-24.9,w:21,l:12.9,az:126,h:6,c:0xa89880}];
@@ -342,39 +342,37 @@ n0=scene.children.length;
 /* ---------- траса кабелю і заземлення ---------- */
 function buildRoute(){ var m=scene.children.length;
 (function(){
-  var order=TABLES.map(function(t,i){return {i:i,t:t};}).sort(function(a,b){return Math.hypot(b.t.x,b.t.y)-Math.hypot(a.t.x,a.t.y);});
-  var nodes=order.map(function(o){ return {w:[o.t.x-4.007,o.t.y+0.844], e:[o.t.x+4.093,o.t.y+0.844]}; });
-  var path=[];
-  nodes.forEach(function(n,k){ if(k===0) path.push(n.w); else { path.push(n.e); path.push(n.w); } });
-  path.push([0,0]);
-  var pts=[];
-  for(var k=0;k<path.length-1;k++){
-    var a=path[k], b=path[k+1], L=Math.hypot(b[0]-a[0],b[1]-a[1]), n=Math.max(2,Math.ceil(L));
-    for(var j=0;j<=n;j++){ var x=a[0]+(b[0]-a[0])*j/n, y=a[1]+(b[1]-a[1])*j/n; pts.push(new THREE.Vector3(x, ground(x,y)+0.18, -y)); }
-  }
-  scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({color:0xff8c42})));
-  var boxM=new THREE.MeshStandardMaterial({color:0xff8c42, roughness:0.7});
-  nodes.forEach(function(n,k){ var b=(k<nodes.length-1)?n.w:n.e; var m=new THREE.Mesh(new THREE.BoxGeometry(0.35,0.45,0.2), boxM); m.position.set(b[0], ground(b[0],b[1])+0.9, -b[1]); m.castShadow=true; scene.add(m); });
-  var rodM=new THREE.MeshStandardMaterial({color:0x52c07a, roughness:0.6});
-  [nodes[0].w, [0,0]].forEach(function(p){
-    var r=new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.06,2.4,6), rodM); r.position.set(p[0], ground(p[0],p[1])-0.9, -p[1]); scene.add(r);
-    var c=new THREE.Mesh(new THREE.ConeGeometry(0.25,0.4,8), rodM); c.position.set(p[0], ground(p[0],p[1])+0.5, -p[1]); scene.add(c);
+  /* траса 03.10.2026: магістраль паралельно шнуру А–Г на 9 м від нього (≥2,2 м від паль), відгалуження до кожного стола
+     посередині між передніми палями 2 і 3 (≥1,45 м від паль); кабель по рамі в гофрі; ввід біля хліва */
+  var A0=RECT[0], G0=RECT[3], B0=RECT[1], INP=[-3.29,-3.07], TY=9;
+  var ux=[(G0[0]-A0[0])/30,(G0[1]-A0[1])/30], uy=[(B0[0]-A0[0])/10,(B0[1]-A0[1])/10];
+  function P(X,Y){ return [A0[0]+X*ux[0]+Y*uy[0], A0[1]+X*ux[1]+Y*uy[1]]; }
+  function inv(p){ var d=[p[0]-A0[0],p[1]-A0[1]], a=ux[0]*uy[1]-ux[1]*uy[0];
+    return [(d[0]*uy[1]-d[1]*uy[0])/a, (ux[0]*d[1]-ux[1]*d[0])/a]; }
+  function riser(t){ return [t.x+0.043, t.y+0.844-0.6]; }
+  var ip=inv(INP), corner=P(ip[0],TY);
+  var tabs=TABLES.map(function(t){ var r=riser(t), rp=inv(r); return {r:r,rp:rp,j:P(rp[0],TY)}; });
+  tabs.sort(function(a,b){ return Math.abs(ip[0]-b.rp[0])-Math.abs(ip[0]-a.rp[0]); });
+  function line(pts,col,dashed){
+    var v=[]; for(var k=0;k<pts.length-1;k++){ var a=pts[k], b=pts[k+1], L=Math.hypot(b[0]-a[0],b[1]-a[1]), n=Math.max(2,Math.ceil(L));
+      for(var j=0;j<=n;j++){ var x=a[0]+(b[0]-a[0])*j/n, y=a[1]+(b[1]-a[1])*j/n; v.push(new THREE.Vector3(x, ground(x,y)+0.18, -y)); } }
+    var ln=new THREE.Line(new THREE.BufferGeometry().setFromPoints(v), dashed?new THREE.LineDashedMaterial({color:col,dashSize:0.8,gapSize:0.6}):new THREE.LineBasicMaterial({color:col}));
+    if(dashed) ln.computeLineDistances(); scene.add(ln); }
+  line([tabs[0].j].concat(tabs.slice(1).map(function(o){return o.j;})).concat([corner,INP]),0xff8c42,false);
+  tabs.forEach(function(o){ line([o.r,o.j],0xff8c42,false); });
+  var boxM=new THREE.MeshStandardMaterial({color:0xff8c42, roughness:0.7}), stubM=new THREE.MeshStandardMaterial({color:0xd0d4da, roughness:0.5});
+  tabs.forEach(function(o){
+    var g0=ground(o.r[0],o.r[1]);
+    var m=new THREE.Mesh(new THREE.BoxGeometry(0.35,0.45,0.2), boxM); m.position.set(o.r[0], g0+0.9, -o.r[1]); m.castShadow=true; scene.add(m);
+    var c=new THREE.Mesh(new THREE.CylinderGeometry(0.04,0.04,1.4,6), stubM); c.position.set(o.r[0], g0+0.5, -o.r[1]); scene.add(c);
   });
-  var s4=[T4.x+4.093,T4.y+0.844], e1=nodes[nodes.length-1].e, sp=[];
-  for(var j=0;j<=14;j++){ var x=s4[0]+(e1[0]-s4[0])*j/14, y=s4[1]+(e1[1]-s4[1])*j/14; sp.push(new THREE.Vector3(x, ground(x,y)+0.18, -y)); }
-  var spl=new THREE.Line(new THREE.BufferGeometry().setFromPoints(sp), new THREE.LineDashedMaterial({color:0x9aa3ad, dashSize:0.8, gapSize:0.6}));
-  spl.computeLineDistances(); scene.add(spl);
-  /* стояки-закладні Ø32 і перемички по палях */
-  var stubM=new THREE.MeshStandardMaterial({color:0xd0d4da, roughness:0.5});
-  var stubs=[nodes[0].w, nodes[1]?nodes[1].w:null, nodes[nodes.length-1].e, s4].filter(Boolean);
-  stubs.forEach(function(p){ var c=new THREE.Mesh(new THREE.CylinderGeometry(0.04,0.04,1.2,6), stubM); c.position.set(p[0]+0.3, ground(p[0],p[1])-0.1, -p[1]); scene.add(c); });
+  var r4=riser(T4), j4=P(inv(r4)[0],TY); line([r4,j4],0x9aa3ad,true);
   var jM=new THREE.LineBasicMaterial({color:0x52c07a});
   TABLES.forEach(function(t){ var g0=ground(t.x,t.y);
     [0.844,3.444].forEach(function(v){ var pts=[0,2.7,5.4,8.1].map(function(u){ return new THREE.Vector3(t.x-(u-4.65+0.557), g0+0.5, -(t.y+v)); }); scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), jM)); });
-    [0,8.1].forEach(function(u){ var x=t.x-(u-4.65+0.557); scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(x,g0+0.5,-(t.y+0.844)),new THREE.Vector3(x,g0+0.5,-(t.y+3.444))]), jM)); });
   });
-  var inv=new THREE.Mesh(new THREE.BoxGeometry(0.5,0.7,0.25), new THREE.MeshStandardMaterial({color:0xf5c518}));
-  inv.position.set(0, ground(0,0)+1.2, 0); scene.add(inv);
+  var inv0=new THREE.Mesh(new THREE.BoxGeometry(0.5,0.7,0.25), new THREE.MeshStandardMaterial({color:0xf5c518}));
+  inv0.position.set(INP[0], ground(INP[0],INP[1])+1.2, -INP[1]); scene.add(inv0);
 })();
 grab("route",m); }
 buildRoute();

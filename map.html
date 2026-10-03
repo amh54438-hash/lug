@@ -724,7 +724,7 @@ function draw(){
      .on("dragend",function(){ draw(); shadows(); drawCorridor(); })
      .on("click",function(){ selectTable(i); });
   });
-  state.trees.forEach(function(tr,i){
+  if(SHOW_MODEL_TREES) state.trees.forEach(function(tr,i){
     L.circle(toLL(tr.x,tr.y),{radius:tr.r,color:tr.cut?"#6b7280":"#52c07a",weight:1.5,
       fillOpacity:tr.cut?.08:.25,dashArray:tr.cut?"4 4":null}).addTo(gTrees);
     L.marker(toLL(tr.x,tr.y),{draggable:true,icon:dot(tr.cut?"#6b7280":"#52c07a")}).addTo(gTrees)
@@ -797,7 +797,7 @@ function phImpact(){
      'За 25 років помнож на ~22 (з деградацією панелей).</div>';
   document.getElementById("phout").innerHTML=h;
 }
-var SHOW_PH_TREES=false;
+var SHOW_PH_TREES=false, SHOW_MODEL_TREES=false;   /* дерева на карті не малюємо — є в 3D; у розрахунку лишаються */
 function drawPh(){
   if(!window.gPh) return; gPh.clearLayers();
   if(typeof HPTS!=="undefined") HPTS.forEach(function(pt){
@@ -1008,44 +1008,51 @@ function plabZoom(){ var c=document.getElementById("map"); if(c) c.classList.tog
 
 /* ---------------- траса кабелю і заземлення ---------------- */
 var RHO_CU=0.0175, IMP=14.0, VMP=700, PSTR=10000;   /* Ом·мм²/м, А, В, Вт на стрінг */
-var T4RES={x:-15.5,y:8,az:180};                    /* резервне місце 4-го стола */
+var T4RES={x:9.55,y:22.15,az:180};                 /* резерв 4-го стола: у координатах плану X=12, Y=16 (+10 670 кВт·год/рік) */
 var INP=[-3.29,-3.07];                             /* ввід/лічильник: 4,5 м на ПдЗ по осі хліва від старої точки (0,0) */
+/* Траса (03.10.2026): траншея НЕ вздовж паль. Магістраль — смугою вільної землі перед рядом, паралельно шнуру А–Г
+   на TRENCH_Y м від нього (≥2,2 м від будь-якої палі); до кожного стола — коротке відгалуження, що підходить
+   посередині між передніми палями 2 і 3, на 0,6 м перед ними (≥1,45 м від паль). Далі кабель іде по рамі в гофрі. */
+var TRENCH_Y=9;
+function riserOf(t){
+  var f=pileLL(t), p2=f.filter(function(q){return q.n==="передня 2";})[0], p3=f.filter(function(q){return q.n==="передня 3";})[0];
+  return [(p2.x+p3.x)/2, (p2.y+p3.y)/2-0.6];
+}
+function planP(X,Y){ return [PA[0]+X*PUX[0]+Y*PUY[0], PA[1]+X*PUX[1]+Y*PUY[1]]; }
 function routeGeom(){
-  var tabs=state.tables.map(function(t,i){return {i:i,t:t};});
-  tabs.sort(function(a,b){return Math.hypot(b.t.x,b.t.y)-Math.hypot(a.t.x,a.t.y);});   /* від дальнього до вводу */
-  var nodes=tabs.map(function(o){
-    var front=pileLL(o.t).filter(function(p){return p.n.indexOf("передня")===0;});
-    front.sort(function(a,b){return a.x-b.x;});
-    return {i:o.i,t:o.t,w:[front[0].x,front[0].y],e:[front[3].x,front[3].y]};
-  });
-  var seg=[];
-  for(var k=0;k<nodes.length-1;k++) seg.push({name:"стіл "+(nodes[k].i+1)+" → стіл "+(nodes[k+1].i+1),a:nodes[k].w,b:nodes[k+1].e,strings:k+1});
-  var last=nodes[nodes.length-1];
-  var f4=pileLL(T4RES).filter(function(p){return p.n.indexOf("передня")===0;}).sort(function(a,b){return a.x-b.x;});
-  var z4=[f4[3].x,f4[3].y];
-  seg.push({name:"стіл "+(last.i+1)+" → З4",a:last.e,b:z4,strings:nodes.length});
-  seg.push({name:"З4 → ввід",a:z4,b:INP,strings:nodes.length});
-  seg.forEach(function(s){ s.len=Math.hypot(s.a[0]-s.b[0],s.a[1]-s.b[1]); });
+  var inpPl=planXY(INP[0],INP[1]);
+  var tabs=state.tables.map(function(t,i){ var r=riserOf(t), rp=planXY(r[0],r[1]); return {i:i,t:t,r:r,rp:rp,j:planP(rp[0],TRENCH_Y)}; });
+  tabs.sort(function(a,b){ return Math.abs(inpPl[0]-b.rp[0])-Math.abs(inpPl[0]-a.rp[0]); });   /* від дальнього до вводу */
+  var seg=[], corner=planP(inpPl[0],TRENCH_Y);
+  tabs.forEach(function(o){ seg.push({name:"відгалуження стола "+(o.i+1),a:o.r,b:o.j,strings:1,spur:true}); });
+  for(var k=0;k<tabs.length-1;k++) seg.push({name:"магістраль: стіл "+(tabs[k].i+1)+" → стіл "+(tabs[k+1].i+1),a:tabs[k].j,b:tabs[k+1].j,strings:k+1});
+  seg.push({name:"магістраль: стіл "+(tabs[tabs.length-1].i+1)+" → поворот",a:tabs[tabs.length-1].j,b:corner,strings:tabs.length});
+  seg.push({name:"магістраль → ввід",a:corner,b:INP,strings:tabs.length});
+  seg.forEach(function(x){ x.len=Math.hypot(x.a[0]-x.b[0],x.a[1]-x.b[1]); });
   var frameL=PILES[PILES.length-1];
-  nodes.forEach(function(n,k){
-    var L=0; for(var j=k;j<seg.length;j++) L+=seg[j].len;
-    L+=frameL*(nodes.length-1-k);               /* уздовж рам ближчих столів */
-    n.oneway=L+frameL/2+6;                      /* + половина рами + спуски з панелей */
+  function mainFrom(k){ var L0=0; for(var q=k;q<tabs.length-1;q++) L0+=Math.hypot(tabs[q].j[0]-tabs[q+1].j[0],tabs[q].j[1]-tabs[q+1].j[1]);
+    return L0+Math.hypot(tabs[tabs.length-1].j[0]-corner[0],tabs[tabs.length-1].j[1]-corner[1])+Math.hypot(corner[0]-INP[0],corner[1]-INP[1]); }
+  var nodes=tabs.map(function(o,k){
+    var sp=Math.hypot(o.r[0]-o.j[0],o.r[1]-o.j[1]);
+    return {i:o.i,t:o.t,w:o.r,e:o.r,j:o.j,oneway:mainFrom(k)+sp+3+frameL/2+4};   /* +3 м стояк і гофра до рами, + по рамі до кінців стрінга */
   });
   var trench=seg.reduce(function(a,x){return a+x.len;},0);
-  var spur={a:z4,b:z4,len:0};                 /* 4-й стіл сидить на магістралі: окремої траншеї не треба */
-  spur.oneway=seg[seg.length-1].len+frameL/2+6;
-  var rods=[];                                /* штирі не потрібні: 24 палі в бетоні вже є заземлювачем */
-  return {nodes:nodes,seg:seg,trench:trench,rods:rods,frameL:frameL,spur:spur,last:last,z4:z4,inp:INP};
+  var r4=riserOf(T4RES), rp4=planXY(r4[0],r4[1]), j4=planP(rp4[0],TRENCH_Y);
+  var spurLen=Math.hypot(r4[0]-j4[0],r4[1]-j4[1]);
+  /* довжина магістралі від точки врізки 4-го стола до вводу */
+  var m4=Math.abs(inpPl[0]-rp4[0])+Math.hypot(corner[0]-INP[0],corner[1]-INP[1]);
+  var spur={a:r4,b:j4,len:spurLen,oneway:spurLen+m4+3+frameL/2+4};
+  return {nodes:nodes,seg:seg,trench:trench,rods:[],frameL:frameL,spur:spur,last:nodes[nodes.length-1],z4:j4,inp:INP,corner:corner};
 }
 function drawRoute(){
   gRoute.clearLayers();
   if(!state.tables.length) return;
   var g=routeGeom();
   g.seg.forEach(function(s){
-    L.polyline(LLs([s.a,s.b]),{color:"#ff8c42",weight:4,opacity:.9,dashArray:"9 6"}).addTo(gRoute)
+    L.polyline(LLs([s.a,s.b]),{color:"#ff8c42",weight:s.spur?3:4,opacity:.9,dashArray:"9 6"}).addTo(gRoute)
      .bindTooltip("траншея "+s.name+": "+s.len.toFixed(1)+" м, "+(2*s.strings)+" жили + катанка");
   });
+  L.polyline(LLs([g.spur.a,g.spur.b]),{color:"#9aa3ad",weight:2,dashArray:"4 5"}).addTo(gRoute).bindTooltip("перспектива: відгалуження 4-го стола "+g.spur.len.toFixed(1)+" м");
   L.polygon(LLs(tableFoot(T4RES)),{color:"#9aa3ad",weight:1.5,fill:false,dashArray:"4 4",interactive:false}).addTo(gRoute);
   g.nodes.forEach(function(n,k){
     var boxAt=(k<g.nodes.length-1)?n.w:n.e;
@@ -1126,7 +1133,11 @@ function wiringSVG(g){
 }
 
 function routeReport(){
-  var g=routeGeom(), html='<h3 style="margin:10px 0 4px">Траса кабелю</h3>';
+  var g=routeGeom(), html='<h3 style="margin:10px 0 4px">Траса кабелю</h3>'+
+    '<div class="hint" style="margin-bottom:6px"><b>Траншея не йде вздовж паль.</b> Магістраль — смугою вільної землі перед рядом, паралельно шнуру А–Г на '+TRENCH_Y+' м від нього '+
+    '(до найближчої палі ≥2,2 м). До кожного стола — коротке відгалуження, що підходить посередині між передніми палями 2 і 3, на 0,6 м перед ними (≥1,45 м від паль). '+
+    'Там кабель виходить із землі в трубі, піднімається на нижній прогін і йде по рамі в гофрі з УФ-захистом, на хомутах. Землю біля паль не чіпаємо — фундамент не послаблюємо. '+
+    'Траншею краще копати ДО заливки паль або після того, як бетон набере міцність (≥7 діб).</div>';
   html+='<table><tr><th>Стрінг</th><th class="n">шлях в один бік</th><th class="n">кабель ×2</th><th class="n">ΔU 6 мм²</th><th class="n">втрата/рік</th></tr>';
   var cab=0, eloss=0;
   g.nodes.slice().sort(function(a,b){return a.i-b.i;}).forEach(function(n){
