@@ -27,8 +27,24 @@
   #pilesheet .top .sp{flex:1}
   #pilesheet table td,#pilesheet table th{font-size:13px;padding:5px 6px}
   #pilesheet td.id{font-weight:700;color:var(--sun)}
-  @media (max-width:760px){ #pilesheet{top:auto;left:0;width:auto;min-width:0;height:55vh;border-left:0;border-top:1px solid var(--line);
-    box-shadow:0 -8px 30px rgba(0,0,0,.45)} }
+  .pcards{display:none}
+  .pcard{border:1px solid var(--line);border-radius:10px;padding:9px 11px;margin:7px 0;background:#141924}
+  .pcard .h{display:flex;align-items:baseline;gap:8px}
+  .pcard .h b{font-size:18px;color:var(--sun)} .pcard .h span{color:var(--dim);font-size:13px}
+  .pcard .xy{display:flex;gap:18px;margin:4px 0 2px;font-size:20px;font-weight:700;font-variant-numeric:tabular-nums}
+  .pcard .xy small{display:block;font-size:11px;font-weight:400;color:var(--dim)}
+  .pcard .gps{font-size:12px;color:var(--dim)} .pcard .gps a{color:var(--tbl)}
+  #fabpiles{display:none;position:absolute;z-index:1000;right:12px;top:12px;background:var(--ok);color:#06210f;border:0;
+    font-weight:700;padding:10px 14px;border-radius:22px;box-shadow:0 3px 12px rgba(0,0,0,.4)}
+  @media (max-width:760px){
+    #pilesheet{top:auto;left:0;right:0;width:auto;min-width:0;height:62vh;border-left:0;border-top:1px solid var(--line);
+      border-radius:14px 14px 0 0;box-shadow:0 -8px 30px rgba(0,0,0,.45);padding:10px 12px 40px}
+    #pilesheet .top{position:sticky;top:-10px;background:var(--panel);padding:6px 0;margin:0 0 6px;z-index:2}
+    #pilesheet .top button{padding:9px 12px;font-size:15px}
+    #pilesheet h3{font-size:16px;width:100%}
+    #pilesheet table{display:none} .pcards{display:block}
+    #fabpiles{display:block}
+  }
   aside{width:360px;background:var(--panel);border-left:1px solid var(--line);
     overflow-y:auto;padding:14px 14px 40px}
   h1{font-size:16px;margin:0 0 2px}
@@ -919,7 +935,11 @@ function openPiles(i){
   svg+='</svg>';
   var tb='<table><tr><th>№</th><th>паля</th><th class="n">X від А, м</th><th class="n">Y від А–Г, м</th><th class="n">широта</th><th class="n">довгота</th></tr>';
   rows.forEach(function(p){ tb+='<tr><td class="id">'+p.id+'</td><td>'+p.name+'</td><td class="n">'+f2(p.X)+'</td><td class="n">'+f2(p.Y)+'</td><td class="n">'+p.lat.toFixed(7)+'</td><td class="n">'+p.lon.toFixed(7)+'</td></tr>'; });
-  tb+='</table>';
+  tb+='</table><div class="pcards">';
+  rows.forEach(function(p){ tb+='<div class="pcard"><div class="h"><b>'+p.id+'</b><span>'+p.name+'</span></div>'+
+    '<div class="xy"><div>'+f2(p.X)+'<small>X від А вздовж шнура, м</small></div><div>'+f2(p.Y)+'<small>Y від шнура до хати, м</small></div></div>'+
+    '<div class="gps">GPS '+p.lat.toFixed(7)+', '+p.lon.toFixed(7)+' · <a href="https://maps.google.com/?q='+p.lat.toFixed(7)+','+p.lon.toFixed(7)+'" target="_blank" rel="noopener">на карті</a></div></div>'; });
+  tb+='</div>';
   var onLine=rows.filter(function(p){return Math.abs(p.Y)<0.05;}).map(function(p){return p.id;});
   document.getElementById("psbody").innerHTML=svg+
     '<div class="hint" style="margin:8px 0">Схема як на карті: північ угорі, схід праворуч. Нумерація: <b>1–4</b> — передній ряд (південний), <b>5–8</b> — задній, обидва зі сходу на захід. '+
@@ -928,7 +948,8 @@ function openPiles(i){
     'Y — під прямим кутом від шнура в бік хати (кут — трикутником 3-4-5 м).'+(onLine.length?' Паля <b>'+onLine.join(", ")+'</b> стоїть рівно на шнурі А–Г.':'')+
     '<br><b>Перевірка:</b> уздовж ряду 2,70 м між палями, між рядами 2,60 м, діагональ прямокутника з 4 паль 3,748 м (як у кресленні). GPS телефона помиляється на 2–3 м — рулетка точніша.</div>';
   document.getElementById("pilesheet").hidden=false;
-  map.flyToBounds(LLs(tableFoot(t)),{padding:[60,60],maxZoom:21,duration:0.5});
+  var mob=innerWidth<=760;
+  map.flyToBounds(LLs(tableFoot(t)),mob?{paddingTopLeft:[30,70],paddingBottomRight:[30,Math.round(innerHeight*0.64)],maxZoom:21,duration:0.5}:{padding:[60,60],maxZoom:21,duration:0.5});
 }
 document.getElementById("psclose").onclick=function(){ document.getElementById("pilesheet").hidden=true; };
 document.getElementById("psprev").onclick=function(){ openPiles(PS.i-1); };
@@ -1934,6 +1955,8 @@ try{ if(!localStorage.getItem("solar.row.applied")){
 fillCorridorSelect(); phUI(); draw(); drawCanopy(); shadows(); drawCorridor();
 window.addEventListener("resize",function(){ sunChart(); });
 document.getElementById("pilesbtn").onclick=function(){ openPiles(0); };
+(function(){ var b=document.createElement("button"); b.id="fabpiles"; b.textContent="Палі"; b.onclick=function(){ openPiles(PS.i||0); };
+  document.getElementById("map").appendChild(b); L.DomEvent.disableClickPropagation(b); })();
 map.on("zoomend",plabZoom); plabZoom();
 if(/piles/.test(location.hash+location.search)) setTimeout(function(){ openPiles(0); },400);
 document.getElementById("gndinfo").innerHTML="Рельєф: растр Copernicus DSM, крок 4 м, радіус 400 м (ухил ділянки ~"+slopePct().toFixed(0)+
