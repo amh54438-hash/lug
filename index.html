@@ -249,11 +249,12 @@ scene.add(tr); scene.add(cr);
 /* ---------- дерева, знайдені на фото 02–03.10.2026 (сітка точок з висоти 65 см) ---------- */
 /* текстова мітка в сцені */
 function label3d(text,col){
-  var cv=document.createElement("canvas"); cv.width=256; cv.height=64; var g=cv.getContext("2d");
-  g.font="600 34px -apple-system,Segoe UI,sans-serif"; g.textAlign="center"; g.textBaseline="middle";
-  g.lineWidth=6; g.strokeStyle="rgba(0,0,0,.85)"; g.strokeText(text,128,32); g.fillStyle=col; g.fillText(text,128,32);
-  var sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(cv), depthTest:false, transparent:true}));
-  sp.scale.set(4,1,1); sp.renderOrder=10; return sp;
+  var cv=document.createElement("canvas"), g=cv.getContext("2d"), F="600 34px -apple-system,Segoe UI,sans-serif";
+  g.font=F; cv.width=Math.max(256,Math.ceil(g.measureText(text).width)+24); cv.height=64;
+  g.font=F; g.textAlign="center"; g.textBaseline="middle";
+  g.lineWidth=6; g.strokeStyle="rgba(0,0,0,.85)"; g.strokeText(text,cv.width/2,32); g.fillStyle=col; g.fillText(text,cv.width/2,32);
+  var sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(cv), depthTest:false, transparent:true, sizeAttenuation:false}));
+  sp.scale.set(0.024*cv.width/64,0.024,1); sp.renderOrder=10; return sp;   /* сталий розмір на екрані */
 }
 /* шари, які вмикаються галочками */
 var LAY={};
@@ -378,13 +379,16 @@ grab("rect",n0);
 /* точки фото-зйомки 02–03.10 (камера на 0,65 м) */
 n0=scene.children.length;
 (function(){
-  var P=[["(0;0)", 10.23, 42.14], ["(0;10)", 15.95, 33.94], ["(10;10)", 7.75, 28.22], ["(20;10)", -0.45, 22.49], ["(30;10)", -8.65, 16.77], ["(10;0)", 2.03, 36.42], ["(20;0)", -6.17, 30.69]];
-  var pm=new THREE.MeshStandardMaterial({color:0xf5c518, roughness:0.5});
+  var P=[["(0;0)", 10.23, 42.14, true], ["(10;0)", 2.03, 36.42, true], ["(20;0)", -6.17, 30.69, true], ["(30;0)", -14.37, 24.97, false], ["(0;10)", 15.95, 33.94, true], ["(10;10)", 7.75, 28.22, true], ["(20;10)", -0.45, 22.49, true], ["(30;10)", -8.65, 16.77, true]];   /* [назва, x, y, чи є фото] — вузли сітки плану v4 */
+  var pm=new THREE.MeshStandardMaterial({color:0xf5c518, roughness:0.5, emissive:0x3a2c00});
+  var pg=new THREE.MeshStandardMaterial({color:0x9aa3ad, roughness:0.5});
   P.forEach(function(q){
-    var g0=ground(q[1],q[2]);
-    var c=new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,0.65,6),pm); c.position.set(q[1],g0+0.325,-q[2]); scene.add(c);
-    var b=new THREE.Mesh(new THREE.SphereGeometry(0.14,10,8),pm); b.position.set(q[1],g0+0.7,-q[2]); scene.add(b);
-    var sp=label3d(q[0],"#f5c518"); sp.position.set(q[1],g0+1.5,-q[2]); scene.add(sp);
+    var g0=ground(q[1],q[2]), m=q[3]?pm:pg;
+    var c=new THREE.Mesh(new THREE.CylinderGeometry(0.07,0.07,0.65,8),m); c.position.set(q[1],g0+0.325,-q[2]); scene.add(c);
+    var b=new THREE.Mesh(new THREE.SphereGeometry(0.28,12,9),m); b.position.set(q[1],g0+0.75,-q[2]); scene.add(b);
+    var ring=new THREE.Mesh(new THREE.RingGeometry(0.7,1.0,28),new THREE.MeshBasicMaterial({color:q[3]?0xf5c518:0x9aa3ad,side:THREE.DoubleSide}));
+    ring.rotation.x=-Math.PI/2; ring.position.set(q[1],g0+0.08,-q[2]); scene.add(ring);
+    var sp=label3d(q[0]+(q[3]?"":" · фото нема"),q[3]?"#f5c518":"#c3cad6"); sp.scale.multiplyScalar(1.3); sp.position.set(q[1],g0+2.2,-q[2]); scene.add(sp);
   });
 })();
 grab("points",n0);
