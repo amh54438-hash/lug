@@ -181,7 +181,7 @@ var PLAN_V4={"rect": [[10.226, 42.143], [15.95, 33.944], [-8.648, 16.77], [-14.3
 var PLAN_OPT=[{x:9.88,y:35.66,az:180},{x:-0.37,y:28.5,az:180},{x:-10.62,y:21.34,az:180}];
 /* Вільна розстановка (столи врозкид, теж без перекриття з півдня): 30 242 — максимум для цієї ділянки без зрізання. */
 var PLAN_FREE=[{x:10.13,y:27.44,az:180},{x:-0.03,y:28.88,az:180},{x:-10.12,y:20.62,az:180}];
-var DEF_TABLES=JSON.parse(JSON.stringify(PLAN_V4.tables));   /* до 03.10: (-7;15.5), (3;25), (13.5;34) */  /* 28.09.2026 ФІНАЛ: притиснуто до річкової межі, проїзд 6,5 м */  /* 28.09.2026: крок 12 м після врахування рельєфу на 400 м; 4-й на (-13.3;8.9) */
+var DEF_TABLES=JSON.parse(JSON.stringify(PLAN_OPT));   /* 03.10.2026: за замовчуванням — рівний ряд з проходом 1 м */   /* до 03.10: (-7;15.5), (3;25), (13.5;34) */  /* 28.09.2026 ФІНАЛ: притиснуто до річкової межі, проїзд 6,5 м */  /* 28.09.2026: крок 12 м після врахування рельєфу на 400 м; 4-й на (-13.3;8.9) */
 
 /* ---------------- геометрія столу (НСФЗ-М5К2х8-П30-4100) ---------------- */
 var TILT=30, SLOPE=4.772, TLEN=9.219, H0=0.647;
@@ -1835,10 +1835,10 @@ document.getElementById("reset").onclick=function(){
 };
 try{ var s0=JSON.parse(localStorage.getItem(KEY)||"null");
      if(s0&&s0.plot){ state.plot=s0.plot; state.trees=s0.trees||[]; state.tables=s0.tables; if(s0.buildings) state.buildings=s0.buildings; } }catch(e){}
-try{ if(!localStorage.getItem("solar.planv4.applied")){
-       state.tables=JSON.parse(JSON.stringify(PLAN_V4.tables));
+try{ if(!localStorage.getItem("solar.row.applied")){
+       state.tables=JSON.parse(JSON.stringify(PLAN_OPT));
        state.plot=DEF_PLOT.map(function(p){return toXY(p[0],p[1]);});
-       localStorage.setItem("solar.planv4.applied","1");
+       localStorage.setItem("solar.row.applied","1"); localStorage.setItem("solar.planv4.applied","1");
        try{ localStorage.setItem(KEY,JSON.stringify(state)); }catch(e){}
      } }catch(e){}
 fillCorridorSelect(); phUI(); draw(); drawCanopy(); shadows(); drawCorridor();
