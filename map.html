@@ -1,0 +1,1815 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Сонце на городі</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+  :root{
+    --bg:#10131a; --panel:#171b24; --line:#262c38; --ink:#e7ecf3; --dim:#98a3b4;
+    --sun:#f5c518; --ok:#52c07a; --bad:#e05a4f; --tbl:#4aa3ff;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
+    font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+  #wrap{display:flex;height:100%}
+  #map{flex:1;min-width:0}
+  aside{width:360px;background:var(--panel);border-left:1px solid var(--line);
+    overflow-y:auto;padding:14px 14px 40px}
+  h1{font-size:16px;margin:0 0 2px}
+  .sub{color:var(--dim);font-size:12px;margin-bottom:12px}
+  h2{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);
+    margin:18px 0 8px;border-top:1px solid var(--line);padding-top:12px}
+  h2:first-of-type{border-top:0}
+  button{font:inherit;background:#222836;color:var(--ink);border:1px solid var(--line);
+    border-radius:7px;padding:7px 10px;cursor:pointer}
+  button:hover{background:#2c3444}
+  button.on{background:var(--sun);color:#1a1405;border-color:var(--sun);font-weight:600}
+  button.go{background:var(--ok);color:#06210f;border-color:var(--ok);font-weight:600;width:100%;padding:9px}
+  .row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+  label{display:block;color:var(--dim);font-size:12px;margin:8px 0 3px}
+  input[type=number],select{width:100%;background:#0e1219;color:var(--ink);
+    border:1px solid var(--line);border-radius:6px;padding:6px 8px;font:inherit}
+  input[type=range]{width:100%;accent-color:var(--sun)}
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  th,td{text-align:left;padding:4px 5px;border-bottom:1px solid var(--line)}
+  th{color:var(--dim);font-weight:500}
+  td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+  .big{font-size:24px;font-weight:700;font-variant-numeric:tabular-nums}
+  .big span{font-size:13px;font-weight:400;color:var(--dim)}
+  .hint{color:var(--dim);font-size:12px;margin-top:8px}
+  .tag{display:inline-block;padding:1px 6px;border-radius:5px;background:#222836;
+    color:var(--dim);font-size:11px;margin-left:5px}
+  canvas{width:100%;height:110px;display:block;margin-top:6px}
+  .leaflet-container{background:#0b0e13}
+  .lbl{background:rgba(10,13,19,.8);border:1px solid var(--line);border-radius:5px;
+    padding:0 4px;font-size:11px;color:var(--ink);white-space:nowrap}
+  .mono{font-variant-numeric:tabular-nums;font-family:ui-monospace,Menlo,monospace;font-size:12px}
+  @media(max-width:820px){#wrap{flex-direction:column}aside{width:auto;border-left:0;
+    border-top:1px solid var(--line)}#map{height:55vh;flex:none}}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="map"></div>
+  <aside>
+    <h1>Сонце на городі</h1>
+    <div class="sub"><a href="./" style="color:var(--sun)">← 3D-модель</a> · Ділянка 9,14 сотки · 48,5785° пн. ш. · 3 столи НСФЗ-М5К2×8, 16 ФЕМ Longi 625 Вт, нахил 30°</div>
+
+    <h2>Режим кліку по карті</h2>
+    <div class="row">
+      <button id="m-none" class="on">Дивитись</button>
+      <button id="m-tree">+ Дерево</button>
+      <button id="m-bld">+ Будівля</button>
+      <button id="m-cut">Зрізано</button>
+      <button id="m-edge">Межа</button>
+    </div>
+    <label><input type="checkbox" id="canon" checked> ліс із супутника (висоти крон)</label>
+    <label>Обрій для тіней</label>
+    <select id="hormode">
+      <option value="pts" selected>по точках 02–03.10 (фото з 65 см, 5 точок)</option>
+      <option value="one">одна точка 28.09</option>
+      <option value="off">геометрія: крони з супутника + будівлі + дерева</option>
+    </select>
+    <div class="hint">«По точках» — найточніше: обрій знято на лінії столів і перераховано на висоту кожної точки панелі (0,65–3,03 м). Далеко від точок зйомки (понад 10 м) режим лише прикидка.</div>
+    <div id="phbox"></div>
+    <div class="hint" id="gndinfo"></div>
+    <div class="row" style="align-items:center">
+      <span class="hint" style="margin:0">радіус зрізання, м</span>
+      <input type="number" id="cutr" value="5" step="1" min="1" style="width:70px">
+      <button id="canrestore">Повернути ліс</button>
+    </div>
+    <div id="sel"></div>
+
+    <h2>Сонячна діаграма столу</h2>
+    <div class="row"><select id="sctab" style="flex:1"></select></div>
+    <canvas id="sunchart" style="width:100%;display:block;border:1px solid var(--line);border-radius:8px;background:#0e1219"></canvas>
+    <div class="hint" id="schint"></div>
+
+    <h2>Сонце зараз на карті</h2>
+    <label>Дата: <b id="dlab"></b></label>
+    <input type="range" id="doy" min="1" max="365" value="355">
+    <div class="row" style="margin-top:4px">
+      <button data-doy="355">21 грудня</button>
+      <button data-doy="80">21 березня</button>
+      <button data-doy="172">21 червня</button>
+    </div>
+    <label>Час (київський): <b id="tlab"></b> · висота сонця <b id="elab"></b></label>
+    <input type="range" id="hour" min="3" max="21" step="0.25" value="12">
+    <div class="row"><button id="play">▶ Прокрутити день</button></div>
+
+    <h2>Розрахунок за рік</h2>
+    <div class="row">
+      <button class="go" id="calc">Порахувати з тінями</button>
+    </div>
+    <div class="row">
+      <button id="planv4" style="flex:1">План v4</button>
+      <button id="planopt" style="flex:1">Оптимальна розстановка</button>
+    </div>
+    <div class="row">
+      <button id="auto" style="flex:1">Підібрати розкладку сам</button>
+    </div>
+    <div class="row">
+      <button id="hmap" style="flex:1">Карта допустимої висоти</button>
+    </div>
+    <label><input type="checkbox" id="rot"> дозволити поворот столів ±20°</label>
+    <label>Відступ від межі, м</label>
+    <input type="number" id="margin" value="1.5" step="0.5" min="0">
+    <label>Мін. проміжок між столами, м</label>
+    <input type="number" id="gap" value="3" step="0.5" min="0">
+    <label>Проїзд уздовж межі</label>
+    <select id="corr"></select>
+    <label>Ширина проїзду, м</label>
+    <input type="number" id="corrw" value="4" step="0.5" min="0">
+    <div class="hint">За однакової виробітки підбір бере місце, де більше вільного простору на південь (запас на майбутні дерева) і коротша траса до лічильника.</div>
+    <div id="out"></div>
+    <div id="hmbox"></div>
+    <div id="cutbox"></div>
+
+    <h2>Погодинно за день</h2>
+    <div class="row">
+      <input type="date" id="dday" value="2026-06-21" style="flex:1">
+      <button id="calcday">Показати</button>
+    </div>
+    <div id="daybox"></div>
+
+    <h2>Винос у натуру</h2>
+    <div id="stake"></div>
+
+    <h2>Збереження</h2>
+    <div class="row">
+      <button id="save">Зберегти</button>
+      <button id="load">Відновити</button>
+      <button id="reset">Скинути все</button>
+    </div>
+    <div class="hint">Точки зберігаються у цьому браузері. Дерева, які ти вже зрізав, познач «зрізане» — вони перестануть кидати тінь, але залишаться в списку.</div>
+  </aside>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="weather.js"></script>
+<script src="canopy.js"></script>
+<script src="far.js"></script>
+<script src="horizon.js"></script>
+<script src="horizon_points.js"></script>
+<script>
+"use strict";
+/* ---------------- геодезія: локальні метри навколо лічильника ---------------- */
+var LAT0=48.578561, LON0=28.111281, R=6371008.8;
+var MPD=Math.PI/180*R, MPDX=MPD*Math.cos(LAT0*Math.PI/180);
+function toXY(lat,lng){ return [ (lng-LON0)*MPDX, (lat-LAT0)*MPD ]; }
+function toLL(x,y){ return [ LAT0+y/MPD, LON0+x/MPDX ]; }
+
+/* ---------------- вихідні дані ділянки ---------------- */
+/* 03.10.2026: межа з боку річки = початок схилу, 1,30 м за лінією А–Г плану v4 (супутник обрізав її кронами);
+   до того: [[48.578962,28.111461],[48.578851,28.111640],[48.578519,28.111073],[48.578652,28.110961]] */
+var DEF_PLOT=[[48.5789683, 28.1114504], [48.578851, 28.11164], [48.578519, 28.111073], [48.578652, 28.110961], [48.5787952, 28.1110755]];
+var DEF_TREES=[
+  /* Висоти підігнані так, щоб модель збігалася з обрієм, виміряним по 9 фото 28.09.2026. */
+  {x:-5.0,y:0.5,r:4.0,h:8,cut:false,name:"за хлівом"},
+  {x:11.7,y:11.9,r:2.6,h:5,cut:false,name:"між городом і хатою"},
+  {x:15.8,y:20.7,r:2.7,h:4,cut:false,name:"ліворуч від хати, ближче"},
+  {x:21.6,y:13.9,r:3.3,h:5,cut:false,name:"ліворуч від хати, далі"}
+];
+/* План v4 користувача (plan_v4.svg, 03.10.2026): прямокутник АБВГ 30×10 м, А ≈ 48,57894; 28,11142,
+   вісь А→Г на азимут 235,1°, А→Б на 145,1°; вісь крайньої задньої ніжки — на лінії А–Г. */
+var PLAN_V4={"rect": [[10.226, 42.143], [15.95, 33.944], [-8.648, 16.77], [-14.372, 24.969]], "names": ["А (0;0)", "Б (0;10)", "В (30;10)", "Г (30;0)"], "tables": [{"x": 8.12, "y": 34.43, "az": 180}, {"x": -0.12, "y": 28.68, "az": 180}, {"x": -8.35, "y": 22.93, "az": 180}], "piles": [[4.11, 35.28], [6.81, 35.27], [6.82, 37.87], [9.51, 35.27], [9.52, 37.87], [12.21, 35.27], [12.21, 37.86], [-4.12, 29.53], [-1.42, 29.53], [-1.42, 32.12], [1.28, 29.52], [1.28, 32.12], [3.98, 29.52], [3.98, 32.12], [-12.35, 23.78], [-9.65, 23.78], [-9.65, 26.38], [-6.95, 23.77], [-6.95, 26.38], [-4.25, 23.77], [-4.25, 26.37], [4.12, 37.88], [-4.12, 32.13], [-12.35, 26.38]]};
+/* Оптимальна розстановка за обрієм з 8 точок фото (03.10.2026): у координатах плану X=4,5 / 17 / 27,5 м уздовж А→Г,
+   перші два — задні ніжки на А–Г (Y=5,12), третій на 3 м углиб (Y=8,12). 30 922 / 29 048 (стрінг) проти v4 30 679 / 27 685. */
+var PLAN_OPT=[{x:9.47,y:35.37,az:180},{x:-0.78,y:28.21,az:180},{x:-7.67,y:19.74,az:180}];
+var DEF_TABLES=JSON.parse(JSON.stringify(PLAN_V4.tables));   /* до 03.10: (-7;15.5), (3;25), (13.5;34) */  /* 28.09.2026 ФІНАЛ: притиснуто до річкової межі, проїзд 6,5 м */  /* 28.09.2026: крок 12 м після врахування рельєфу на 400 м; 4-й на (-13.3;8.9) */
+
+/* ---------------- геометрія столу (НСФЗ-М5К2х8-П30-4100) ---------------- */
+var TILT=30, SLOPE=4.772, TLEN=9.219, H0=0.647;
+var DEPTH=SLOPE*Math.cos(TILT*Math.PI/180);        /* 4,13 м по землі  */
+var DTOP=H0+SLOPE*Math.sin(TILT*Math.PI/180);      /* 3,03 м верх      */
+var PDC=16*625, KCAL=0.7803, GAMMA=-0.0029;
+var PILES=[0,2.7,5.4,8.1], PILEROW=2.6;
+
+function frame(az){ var a=az*Math.PI/180; return {f:[Math.sin(a),Math.cos(a)], s:[Math.cos(a),-Math.sin(a)]}; }
+function tableCorners(t){                     /* кути площини панелей, 3D */
+  var fr=frame(t.az), c=Math.cos(TILT*Math.PI/180), s=Math.sin(TILT*Math.PI/180), o=[];
+  [[-TLEN/2,0],[TLEN/2,0],[TLEN/2,SLOPE],[-TLEN/2,SLOPE]].forEach(function(p){
+    o.push([t.x+fr.s[0]*p[0]-fr.f[0]*p[1]*c, t.y+fr.s[1]*p[0]-fr.f[1]*p[1]*c, ground(t.x,t.y)+H0+p[1]*s]);
+  });
+  return o;
+}
+function tableFoot(t){ return tableCorners(t).map(function(p){return [p[0],p[1]];}); }
+function tableSamples(t){                     /* 8 стовпців × 2 ряди × 3 суб-рядки */
+  var fr=frame(t.az), c=Math.cos(TILT*Math.PI/180), s=Math.sin(TILT*Math.PI/180), pts=[];
+  for(var col=0;col<8;col++){
+    var u=(col-3.5)*1.155;
+    for(var row=0;row<2;row++){
+      for(var k=0;k<3;k++){
+        var v=row*2.390+(k+0.5)*2.382/3;
+        pts.push([t.x+fr.s[0]*u-fr.f[0]*v*c, t.y+fr.s[1]*u-fr.f[1]*v*c, ground(t.x,t.y)+H0+v*s]);
+      }
+    }
+  }
+  return pts;
+}
+function pileLL(t){
+  var fr=frame(t.az), c=Math.cos(TILT*Math.PI/180), out=[];
+  for(var i=0;i<4;i++){
+    for(var r=0;r<2;r++){
+      /* по довжині: палі 0/2,7/5,4/8,1 м від лівого краю рами (звис 0,557 м);
+         поперек: передній ряд 0,844 м від нижнього краю панелі, задній ще +2,6 м */
+      var u=PILES[i]-4.65+0.557, v=0.844+r*PILEROW;   /* v — по землі, палі вертикальні */
+      var x=t.x+fr.s[0]*u-fr.f[0]*v, y=t.y+fr.s[1]*u-fr.f[1]*v;
+      out.push({n:(r?"задня":"передня")+" "+(i+1), x:x, y:y, ll:toLL(x,y)});
+    }
+  }
+  return out;
+}
+
+/* ---------------- сонце ---------------- */
+function sunpos(doy,hourUTC){
+  var g=2*Math.PI/365*(doy-1+(hourUTC-12)/24);
+  var eq=229.18*(0.000075+0.001868*Math.cos(g)-0.032077*Math.sin(g)-0.014615*Math.cos(2*g)-0.040849*Math.sin(2*g));
+  var dec=0.006918-0.399912*Math.cos(g)+0.070257*Math.sin(g)-0.006758*Math.cos(2*g)
+         +0.000907*Math.sin(2*g)-0.002697*Math.cos(3*g)+0.00148*Math.sin(3*g);
+  var tst=hourUTC*60+eq+4*LON0, ha=(tst/4-180)*Math.PI/180, la=LAT0*Math.PI/180;
+  var cz=Math.max(-1,Math.min(1,Math.sin(la)*Math.sin(dec)+Math.cos(la)*Math.cos(dec)*Math.cos(ha)));
+  var el=Math.asin(cz)*180/Math.PI;
+  var az=(Math.atan2(Math.sin(ha), Math.cos(ha)*Math.sin(la)-Math.tan(dec)*Math.cos(la))*180/Math.PI+180+360)%360;
+  return {el:el, az:az};
+}
+function sunVec(el,az){
+  var z=(90-el)*Math.PI/180, a=az*Math.PI/180;
+  return [Math.sin(a)*Math.sin(z), Math.cos(a)*Math.sin(z), Math.cos(z)];
+}
+function isSummerTime(doy){ return doy>=87 && doy<=303; }   /* груба межа літнього часу */
+
+/* ---------------- тіні ---------------- */
+function hitsTable(p,sun,t){
+  var fr=frame(t.az), st=Math.sin(TILT*Math.PI/180), ct=Math.cos(TILT*Math.PI/180);
+  var n=[fr.f[0]*st, fr.f[1]*st, ct], o=[t.x,t.y,ground(t.x,t.y)+H0];   /* нормаль дивиться на південь-угору */
+  var den=sun[0]*n[0]+sun[1]*n[1]+sun[2]*n[2];
+  if(Math.abs(den)<1e-9) return false;
+  var k=((o[0]-p[0])*n[0]+(o[1]-p[1])*n[1]+(o[2]-p[2])*n[2])/den;
+  if(k<=0.05) return false;
+  var q=[p[0]+sun[0]*k, p[1]+sun[1]*k, p[2]+sun[2]*k];
+  var du=(q[0]-o[0])*fr.s[0]+(q[1]-o[1])*fr.s[1];
+  var dv=((q[0]-o[0])*(-fr.f[0])+(q[1]-o[1])*(-fr.f[1]))/ct;
+  return du>=-TLEN/2 && du<=TLEN/2 && dv>=0 && dv<=SLOPE;
+}
+function hitsTree(p,sun,tr){
+  if(tr.cut) return false;
+  var dx=tr.x-p[0], dy=tr.y-p[1], a=sun[0]*sun[0]+sun[1]*sun[1];
+  if(a<1e-9) return false;
+  var k=(dx*sun[0]+dy*sun[1])/a;
+  if(k<=0) return false;
+  var cx=p[0]+sun[0]*k, cy=p[1]+sun[1]*k;
+  var off=Math.hypot(cx-tr.x,cy-tr.y);
+  if(off>tr.r) return false;
+  var dt=Math.sqrt(Math.max(tr.r*tr.r-off*off,0))/Math.sqrt(a);
+  var z=p[2]+sun[2]*Math.max(k-dt,0);
+  return z<=ground(tr.x,tr.y)+tr.h;
+}
+
+/* ---------------- опромінення ---------------- */
+function poa(dni,dhi,ghi,el,az,paz){
+  var b=TILT*Math.PI/180, z=(90-el)*Math.PI/180;
+  var cosaoi=Math.max(0,Math.cos(z)*Math.cos(b)+Math.sin(z)*Math.sin(b)*Math.cos((az-paz)*Math.PI/180));
+  var AI=Math.min(1,dni/1367), Rb=cosaoi/Math.max(Math.sin(el*Math.PI/180),0.05);
+  return { beam:dni*cosaoi,
+           difIso:Math.max(0,dhi*(1-AI)*(1+Math.cos(b))/2),   /* з усього неба */
+           difCs :Math.max(0,dhi*AI*Rb),                      /* навколосонячний ореол */
+           grd:ghi*0.2*(1-Math.cos(b))/2 };
+}
+/* Частка неба, яку стіл реально бачить (дерева/ліс/сусідні столи).
+   1,0 = чисте небо; 0,3 = стоїть у гущавині. */
+function skyView(t,trees,tables){
+  var fr=frame(t.az), st=Math.sin(TILT*Math.PI/180), ct=Math.cos(TILT*Math.PI/180);
+  var n=[fr.f[0]*st, fr.f[1]*st, ct];
+  var c=[t.x-fr.f[0]*DEPTH/2, t.y-fr.f[1]*DEPTH/2, ground(t.x,t.y)+H0+SLOPE*st/2];
+  var open=0, tot=0;
+  for(var ai=0; ai<24; ai++){
+    var A=ai*15*Math.PI/180;
+    for(var ei=0; ei<9; ei++){
+      var E=(ei*10+5)*Math.PI/180;
+      var d=[Math.sin(A)*Math.cos(E), Math.cos(A)*Math.cos(E), Math.sin(E)];
+      var cosaoi=d[0]*n[0]+d[1]*n[1]+d[2]*n[2];
+      if(cosaoi<=0) continue;
+      var w=cosaoi*Math.cos(E);
+      tot+=w;
+      var blocked=false, j, ew=1;
+      for(j=0;j<tables.length && !blocked;j++) if(tables[j]!==t && hitsTable(c,d,tables[j])) blocked=true;
+      if(!blocked){
+        if(HOR.mode==="pts"){ blocked = (ei*10+5) < horP(c,ai*15); if(!blocked) ew=extraW(c,d,0); }
+        else if(HOR.on){ blocked = (ei*10+5) < horizonAt(ai*15); }
+        else {
+          for(j=0;j<trees.length && !blocked;j++) if(hitsTree(c,d,trees[j])) blocked=true;
+          for(j=0;j<state.buildings.length && !blocked;j++) if(hitsBuilding(c,d,state.buildings[j])) blocked=true;
+          if(!blocked && hitsCanopy(c,d,null,0)) blocked=true;
+        }
+      }
+      if(!blocked) open+=w*ew;
+    }
+  }
+  return tot>0 ? open/tot : 1;
+}
+function simulate(tables,trees,attr,lossRaster){
+  var per=[],unsh=[],strict=[],monthly=new Array(13).fill(0),worst={};
+  tables.forEach(function(){per.push(0);unsh.push(0);strict.push(0);});
+  var S=tables.map(tableSamples);
+  var SVF=tables.map(function(t){ return skyView(t,trees,tables); });
+  for(var w=0;w<WX.length;w++){
+    var b=WX[w], mo=b[0], hh=b[1], days=b[2], dni=b[3], dhi=b[4], ghi=b[5], T=b[6], WS=b[7];
+    var doy=Math.round((mo-1)*30.4+15);
+    var sp=sunpos(doy,hh+0.5); if(sp.el<=1) continue;
+    var sun=sunVec(sp.el,sp.az);
+    for(var i=0;i<tables.length;i++){
+      var ir=poa(dni,dhi,ghi,sp.el,sp.az,tables[i].az);
+      var full=ir.beam+ir.difIso+ir.difCs+ir.grd; if(full<=0) continue;
+      var Tm=T+full/(25+6.84*WS), der=1+GAMMA*(Tm-25);
+      var frac=1, fracMin=1;
+      if(ir.beam>0 && blockedByHorizon(sp.el,sp.az)){ frac=0; fracMin=0; }
+      else if(ir.beam>0){
+        var lit=0, pts=S[i], panelLit=new Array(16).fill(0);
+        for(var q=0;q<pts.length;q++){
+          var sh=false, j, who=-1;
+          for(j=0;j<tables.length && !sh;j++) if(j!==i && hitsTable(pts[q],sun,tables[j])){ sh=true; who=-2; }
+          if(!sh && HOR.mode==="pts" && sp.el<horP(pts[q],sp.az)){ sh=true; who=-5; }
+          if(!HOR.on){
+            for(j=0;j<trees.length && !sh;j++) if(hitsTree(pts[q],sun,trees[j])){ sh=true; who=j; }
+            for(j=0;j<state.buildings.length && !sh;j++) if(hitsBuilding(pts[q],sun,state.buildings[j])){ sh=true; who=-4; }
+            if(!sh){
+              var esh=PDC*(ir.beam/1000)*(1/pts.length)*der*days*KCAL/1000;
+              if(hitsCanopy(pts[q],sun,lossRaster,esh)){ sh=true; who=-3; }
+            }
+          }
+          if(!sh){ var wl=(HOR.mode==="pts")?extraW(pts[q],sun,mo):1; lit+=wl; panelLit[Math.floor(q/3)]+=wl; }
+          else if(attr && who>=0){
+            var a=attr[who]||(attr[who]={kwh:0,mo:{},hh:{},tab:{}});
+            var dE=PDC*(ir.beam/1000)*(1/pts.length)*der*days*KCAL/1000;
+            a.kwh+=dE; a.mo[mo]=(a.mo[mo]||0)+dE; a.hh[hh]=(a.hh[hh]||0)+dE; a.tab[i]=(a.tab[i]||0)+dE;
+          }
+        }
+        frac=lit/pts.length;
+        fracMin=1;
+        for(var pi=0;pi<16;pi++) fracMin=Math.min(fracMin, panelLit[pi]/3);  /* найслабша панель тягне стрінг */
+      }
+      var sv=SVF[i];
+      var diffuse=ir.difIso*sv + ir.difCs*frac;
+      var ground=ir.grd*(0.25+0.75*sv);
+      var E=PDC*((ir.beam*frac+diffuse+ground)/1000)*der/1000*days*KCAL;
+      var Es=PDC*((ir.beam*fracMin+ir.difIso*sv+ir.difCs*fracMin+ground)/1000)*der/1000*days*KCAL;
+      var Ef=PDC*(full/1000)*der/1000*days*KCAL;
+      per[i]+=E; strict[i]+=Es; unsh[i]+=Ef; monthly[mo]+=E;
+      if(Ef-E>1){ var key=mo+"|"+hh; worst[key]=(worst[key]||0)+(Ef-E); }
+    }
+  }
+  return {per:per,unsh:unsh,strict:strict,monthly:monthly,worst:worst};
+}
+
+
+
+/* ---------------- рельєф і дальнє поле (Copernicus DSM + крони, 4 м, ±400 м) ---------------- */
+var GND={gx:0.044, gy:-0.065};              /* запасна площина, якщо растр не підвантажився */
+var FARR=null;
+(function(){
+  if(typeof FAR==="undefined") return;
+  function dec(b64,signed){
+    var bin=atob(b64), a=signed?new Int8Array(bin.length):new Uint8Array(bin.length);
+    for(var i=0;i<bin.length;i++){ var v=bin.charCodeAt(i); a[i]=signed&&v>127?v-256:v; }
+    return a;
+  }
+  FARR={n:FAR.n, step:FAR.step, half:FAR.half, rel:dec(FAR.relb64,true), can:dec(FAR.canb64,false)};
+})();
+function farIdx(x,y){
+  if(!FARR) return -1;
+  var i=Math.floor((x+FARR.half)/FARR.step), j=Math.floor((y+FARR.half)/FARR.step);
+  if(i<0||j<0||i>=FARR.n||j>=FARR.n) return -1;
+  return j*FARR.n+i;
+}
+function ground(x,y){                        /* висота землі відносно майданчика */
+  var k=farIdx(x,y);
+  if(k<0) return GND.gx*x + GND.gy*y;
+  return FARR.rel[k]/2;
+}
+function farTop(x,y){                        /* верх поверхні дальнього поля: рельєф + крони DSM */
+  var k=farIdx(x,y);
+  if(k<0) return -999;
+  return FARR.rel[k]/2 + FARR.can[k];
+}
+function slopePct(){ return 100*Math.hypot(GND.gx,GND.gy); }
+function slopeAz(){ return (Math.atan2(-GND.gx,-GND.gy)*180/Math.PI+360)%360; }
+
+/* ---------------- будівлі ---------------- */
+var DEF_BUILDINGS=[
+  {x:14.8,y:2.8,w:11.8,l:12.5,az:149,h:8.0,name:"хата"},
+  {x:-0.4,y:-2.9,w:17.7,l:5.9,az:137,h:8.0,name:"хлів"},
+  {x:-43.8,y:-24.9,w:21.0,l:12.9,az:126,h:6.0,name:"сусід на ПдЗ"}
+];
+function bldCorners(b){
+  var a=b.az*Math.PI/180, ux=Math.cos(a), uy=-Math.sin(a), vx=Math.sin(a), vy=Math.cos(a);
+  var out=[];
+  [[-b.w/2,-b.l/2],[b.w/2,-b.l/2],[b.w/2,b.l/2],[-b.w/2,b.l/2]].forEach(function(p){
+    out.push([b.x+ux*p[0]+vx*p[1], b.y+uy*p[0]+vy*p[1]]);
+  });
+  return out;
+}
+function hitsBuilding(p,d,b){
+  var a=b.az*Math.PI/180, ux=Math.cos(a), uy=-Math.sin(a), vx=Math.sin(a), vy=Math.cos(a);
+  var rx=p[0]-b.x, ry=p[1]-b.y;
+  var ox=rx*ux+ry*uy, oy=rx*vx+ry*vy, oz=p[2]-(ground(b.x,b.y));
+  var dx=d[0]*ux+d[1]*uy, dy=d[0]*vx+d[1]*vy, dz=d[2];
+  var t0=0.05, t1=1e9;
+  function slab(o,dd,lo,hi){
+    if(Math.abs(dd)<1e-9) return (o>=lo&&o<=hi);
+    var a1=(lo-o)/dd, a2=(hi-o)/dd;
+    if(a1>a2){ var tmp=a1;a1=a2;a2=tmp; }
+    if(a1>t0) t0=a1;
+    if(a2<t1) t1=a2;
+    return t1>=t0;
+  }
+  if(!slab(ox,dx,-b.w/2,b.w/2)) return false;
+  if(!slab(oy,dy,-b.l/2,b.l/2)) return false;
+  if(!slab(oz,dz,0,b.h)) return false;
+  return t1>=t0 && t1>0.05;
+}
+
+
+/* ---------------- виміряний обрій (з фото 28.09.2026) ---------------- */
+var HOR={on:true, mode:"pts"};
+function horizonAt(az){
+  if(typeof HORIZ==="undefined") return 0;
+  var a=((az%360)+360)%360, i=a/5, i0=Math.floor(i)%72, i1=(i0+1)%72, t=i-Math.floor(i);
+  return HORIZ[i0]*(1-t)+HORIZ[i1]*t;
+}
+function blockedByHorizon(el,az){ return HOR.mode==="one" && el < horizonAt(az); }
+
+/* ---------------- обрій по точках 02–03.10.2026 (horizon_points.js) ---------------- */
+var D2R=Math.PI/180;
+var PHT=(typeof HTREES!=="undefined")?JSON.parse(JSON.stringify(HTREES)):[];
+try{ var phs=JSON.parse(localStorage.getItem("solar.phtrees.v1")||"null");
+     if(phs) PHT.forEach(function(t){ if(t.id in phs) t.cut=!!phs[t.id]; if(phs[t.id+"_prune"]) t.prune=+phs[t.id+"_prune"]; }); }catch(e){}
+var PHP=[];
+function angd(a,b){ return ((a-b+540)%360)-180; }
+function phBuild(){
+  PHP=[];
+  if(typeof HPTS==="undefined") return;
+  HPTS.forEach(function(pt){
+    var eff=pt.e0.slice(), dist=[], i;
+    for(i=0;i<72;i++){ var a=i*5; dist.push(a>=100&&a<215?22:(a>=215&&a<300?45:25)); }   /* типова відстань до перешкоди */
+    PHT.forEach(function(tr){
+      if(tr.kind!=="inhor") return;
+      var dx=tr.x-pt.x, dy=tr.y-pt.y, d=Math.hypot(dx,dy); if(d<tr.r+0.5) return;
+      var azc=(Math.atan2(dx,dy)/D2R+360)%360, half=Math.asin(Math.min(1,tr.r/d))/D2R;
+      var top=Math.atan((ground(tr.x,tr.y)+tr.h-ground(pt.x,pt.y)-0.65)/(d-tr.r*0.5))/D2R;
+      for(i=0;i<72;i++){
+        if(Math.abs(angd(i*5,azc))>half || eff[i]===null) continue;
+        if(eff[i]>top+4) continue;                 /* за деревом стоїть щось вище — обрій формує не воно */
+        /* дерево вирізаємо з виміряного обрію (лишаємо те, що за ним); саме дерево horP()
+           домальовує геометрично з кожної точки панелі — так правильний і кут, і висота */
+        eff[i]=Math.min(eff[i],tr.bg);
+      }
+    });
+    PHP.push({x:pt.x,y:pt.y,z:ground(pt.x,pt.y)+0.65,eff:eff,dist:dist});
+  });
+}
+/* висота обрію для довільної 3D-точки p: зважено по найближчих точках зйомки,
+   з поправкою на висоту p над камерою (камера стояла на 0,65 м) */
+function horP(p,az){
+  var a=((az%360)+360)%360, f=a/5, i0=Math.floor(f)%72, i1=(i0+1)%72, t=f-Math.floor(f), num=0, den=0;
+  for(var k=0;k<PHP.length;k++){
+    var pt=PHP[k], v0=pt.eff[i0], v1=pt.eff[i1];
+    if(v0===null||v1===null) continue;
+    var e0=v0*(1-t)+v1*t, d=pt.dist[t<0.5?i0:i1];
+    var el=Math.atan((d*Math.tan(e0*D2R)-(p[2]-pt.z))/d)/D2R;
+    var r2=(p[0]-pt.x)*(p[0]-pt.x)+(p[1]-pt.y)*(p[1]-pt.y), w=1/(r2+4);
+    num+=w*el; den+=w;
+  }
+  var el0=den>0 ? num/den : horizonAt(a);
+  for(k=0;k<PHT.length;k++){
+    var tr=PHT[k]; if(tr.kind!=="inhor"||tr.cut) continue;
+    var dx=tr.x-p[0], dy=tr.y-p[1], dd=Math.hypot(dx,dy); if(dd<=tr.r) continue;
+    var off=Math.abs(angd(a,(Math.atan2(dx,dy)/D2R+360)%360));
+    var half=Math.asin(tr.r/dd)/D2R; if(off>half) continue;
+    var hh=(tr.prune>0&&tr.prune<tr.h)?tr.prune:tr.h;
+    /* верхівка крони — над центром; так силует збігається з виміряним з усіх точок (±2°) */
+    var elT=Math.atan((ground(tr.x,tr.y)+hh-p[2])/Math.max(dd*Math.cos(off*D2R),0.5))/D2R;
+    if(elT>el0) el0=elT;
+  }
+  return el0;
+}
+/* ажурні дерева поза виміряним обрієм (акації): частка світла, що проходить; mo=0 — середнє за рік */
+function phOpacity(tr,mo){
+  if(mo===0) return (tr.opOn*5+tr.opOff*7)/12;
+  if(mo>=5&&mo<=9) return tr.opOn;
+  if(mo===4||mo===10) return (tr.opOn+tr.opOff)/2;
+  return tr.opOff;
+}
+function extraW(p,sun,mo){
+  var w=1;
+  for(var k=0;k<PHT.length;k++){
+    var tr=PHT[k]; if(tr.kind!=="extra"||tr.cut) continue;
+    for(var j=0;j<tr.parts.length;j++){
+      if(hitsTree(p,sun,{x:tr.parts[j][0],y:tr.parts[j][1],r:tr.r,h:(tr.prune>0&&tr.prune<tr.h)?tr.prune:tr.h,cut:false})){ w*=(1-phOpacity(tr,mo)); break; }
+    }
+  }
+  return w;
+}
+phBuild();
+
+/* ---------------- ліс із супутника (растр висот крон) ---------------- */
+var CAN={on:true, X0:CANOPY.X0, Y0:CANOPY.Y0, nx:CANOPY.nx, ny:CANOPY.ny, h:null, edits:[]};
+(function(){
+  var bin=atob(CANOPY.b64), a=new Uint8Array(bin.length);
+  for(var i=0;i<bin.length;i++) a[i]=bin.charCodeAt(i);
+  CAN.h=a; CAN.base=a.slice(0);
+})();
+function canAt(x,y){
+  if(!CAN.on) return 0;
+  var i=Math.floor(x-CAN.X0), j=Math.floor(y-CAN.Y0);
+  if(i<0||j<0||i>=CAN.nx||j>=CAN.ny) return 0;
+  return CAN.h[j*CAN.nx+i];
+}
+function canIdx(x,y){
+  var i=Math.floor(x-CAN.X0), j=Math.floor(y-CAN.Y0);
+  if(i<0||j<0||i>=CAN.nx||j>=CAN.ny) return -1;
+  return j*CAN.nx+i;
+}
+function cutCircle(x,y,r,newh){
+  for(var j=Math.floor(y-r-CAN.Y0);j<=Math.ceil(y+r-CAN.Y0);j++)
+    for(var i=Math.floor(x-r-CAN.X0);i<=Math.ceil(x+r-CAN.X0);i++){
+      if(i<0||j<0||i>=CAN.nx||j>=CAN.ny) continue;
+      var cx=CAN.X0+i+0.5, cy=CAN.Y0+j+0.5;
+      if(Math.hypot(cx-x,cy-y)<=r && CAN.h[j*CAN.nx+i]>newh) CAN.h[j*CAN.nx+i]=newh;
+    }
+  CAN.edits.push({x:x,y:y,r:r,h:newh});
+}
+function restoreCanopy(){ CAN.h=CAN.base.slice(0); CAN.edits=[]; }
+function hitsCanopy(p,sun,loss,eshare){
+  if(!CAN.on) return false;
+  var ux=sun[0], uy=sun[1], uz=sun[2];
+  var hor=Math.hypot(ux,uy); if(hor<1e-6) return false;
+  var tg=uz/hor, dx=ux/hor, dy=uy/hor, d, gx, gy, z;
+  for(d=1; d<=110; d++){                       /* ближнє поле: виміряні крони на своїй землі */
+    gx=p[0]+dx*d; gy=p[1]+dy*d; z=p[2]+d*tg;
+    var k=canIdx(gx,gy);
+    if(k>=0 && ground(gx,gy)+CAN.h[k]>=z){ if(loss) loss[k]=(loss[k]||0)+eshare; return true; }
+  }
+  for(d=112; d<=400; d+=4){                    /* дальнє поле: поверхня DSM (рельєф разом із лісом) */
+    gx=p[0]+dx*d; gy=p[1]+dy*d; z=p[2]+d*tg;
+    if(z-ground(gx,gy)>60) return false;
+    if(farTop(gx,gy)>=z) return true;
+  }
+  return false;
+}
+var canLayer=null;
+function drawCanopy(){
+  if(canLayer){ map.removeLayer(canLayer); canLayer=null; }
+  if(!CAN.on) return;
+  var sc=3, cv=document.createElement("canvas");
+  cv.width=CAN.nx*sc; cv.height=CAN.ny*sc;
+  var g=cv.getContext("2d");
+  for(var j=0;j<CAN.ny;j++) for(var i=0;i<CAN.nx;i++){
+    var h=CAN.h[j*CAN.nx+i]; if(h<2) continue;
+    var t=Math.min(h,18)/18;
+    g.fillStyle="rgba("+Math.round(30+120*(1-t))+","+Math.round(200-90*t)+","+Math.round(90-40*t)+","+(0.18+0.34*t)+")";
+    g.fillRect(i*sc,(CAN.ny-1-j)*sc,sc,sc);
+  }
+  var sw=toLL(CAN.X0,CAN.Y0), ne=toLL(CAN.X0+CAN.nx, CAN.Y0+CAN.ny);
+  canLayer=L.imageOverlay(cv.toDataURL(),[[sw[0],sw[1]],[ne[0],ne[1]]],{pane:"hm",opacity:1,interactive:false});
+  canLayer.addTo(map);
+}
+
+
+/* Коли сонце реально стоїть на панелях: перший і останній момент, коли освітлено >50% столу */
+function beamWindow(t,doy,trees,tables){
+  var mo=new Date(2026,0,doy).getMonth()+1, S=tableSamples(t), off=(doy>87&&doy<303)?3:2, first=null, last=null, hours=0;
+  for(var h=3;h<=22;h+=0.25){
+    var sp=sunpos(doy,h-off); if(sp.el<=1) continue;
+    var sun=sunVec(sp.el,sp.az), lit=0;
+    if(blockedByHorizon(sp.el,sp.az)){ continue; }
+    for(var q=0;q<S.length;q++){
+      var sh=false, j;
+      for(j=0;j<tables.length && !sh;j++) if(tables[j]!==t && hitsTable(S[q],sun,tables[j])) sh=true;
+      if(!sh && HOR.mode==="pts" && sp.el<horP(S[q],sp.az)) sh=true;
+      if(!HOR.on){
+        for(j=0;j<trees.length && !sh;j++) if(hitsTree(S[q],sun,trees[j])) sh=true;
+        for(j=0;j<state.buildings.length && !sh;j++) if(hitsBuilding(S[q],sun,state.buildings[j])) sh=true;
+        if(!sh && hitsCanopy(S[q],sun,null,0)) sh=true;
+      }
+      if(!sh) lit+=(HOR.mode==="pts")?extraW(S[q],sun,mo):1;
+    }
+    if(lit/S.length>0.5){ if(first===null) first=h; last=h; hours+=0.25; }
+  }
+  function fmt(h){ if(h===null) return "—"; var hh=Math.floor(h), mm=Math.round((h-hh)*60); return hh+":"+("0"+mm).slice(-2); }
+  if(first===null) return "—";
+  var span=last-first+0.25, gap=span-hours;
+  return fmt(first)+"–"+fmt(last)+(gap>0.4?" (з провалом "+gap.toFixed(1)+" год)":"");
+}
+
+/* ---------------- стан ---------------- */
+var state={plot:DEF_PLOT.map(function(p){return toXY(p[0],p[1]);}),
+           buildings:JSON.parse(JSON.stringify(DEF_BUILDINGS)),
+           trees:DEF_TREES.slice(), tables:JSON.parse(JSON.stringify(DEF_TABLES)), selected:null};
+var mode="none";
+
+/* ---------------- карта ---------------- */
+var goog=L.tileLayer("https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
+  {maxZoom:22,maxNativeZoom:20,subdomains:["mt0","mt1","mt2","mt3"],attribution:"Знімки: Google"});
+var esri=L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+  {maxZoom:22,maxNativeZoom:19,attribution:"Знімки: Esri"});
+var _mapinit=true;
+var map=L.map("map",{zoomControl:true,doubleClickZoom:false,layers:[goog]}).setView([48.57874,28.11128],19);
+L.control.layers({"Google":goog,"Esri":esri},{},{position:"topleft"}).addTo(map);
+L.control.scale({imperial:false}).addTo(map);
+map.createPane("hm"); map.getPane("hm").style.zIndex=350;
+var gShadow=L.layerGroup().addTo(map), gPlot=L.layerGroup().addTo(map),
+    gTables=L.layerGroup().addTo(map), gTrees=L.layerGroup().addTo(map), gBld=L.layerGroup().addTo(map), gRoute=L.layerGroup().addTo(map);
+    window.gPh=L.layerGroup().addTo(map);
+    window.gPlan=L.layerGroup().addTo(map);
+function LLs(pts){ return pts.map(function(p){return toLL(p[0],p[1]);}); }
+
+function draw(){
+  gPlot.clearLayers(); gTables.clearLayers(); gTrees.clearLayers(); gBld.clearLayers();
+  setTimeout(drawRoute,0);
+  state.buildings.forEach(function(b,i){
+    L.polygon(LLs(bldCorners(b)),{color:"#c47ae0",weight:2,fillColor:"#8b5cf6",fillOpacity:.35}).addTo(gBld)
+     .on("click",function(){ selectBuilding(i); });
+    L.marker(toLL(b.x,b.y),{draggable:true,icon:dot("#c47ae0")}).addTo(gBld)
+     .on("drag",function(e){ var c=e.target.getLatLng(), xy=toXY(c.lat,c.lng); b.x=xy[0]; b.y=xy[1]; })
+     .on("dragend",function(){ draw(); shadows(); })
+     .on("click",function(){ selectBuilding(i); });
+  });
+  L.polygon(LLs(state.plot),{color:"#f5c518",weight:2,fill:false,dashArray:"5 4"}).addTo(gPlot);
+  state.plot.forEach(function(p,i){
+    L.marker(toLL(p[0],p[1]),{draggable:true,icon:dot("#f5c518")}).addTo(gPlot)
+     .on("drag",function(e){ var c=e.target.getLatLng(); state.plot[i]=toXY(c.lat,c.lng); redrawShapes(); })
+     .on("dragend",function(){ fillCorridorSelect(); draw(); shadows(); drawCorridor(); });
+  });
+  state.tables.forEach(function(t,i){
+    L.polygon(LLs(tableFoot(t)),{color:"#4aa3ff",weight:2,fillColor:"#4aa3ff",fillOpacity:.35}).addTo(gTables);
+    var fr=frame(t.az);
+    L.polyline(LLs([[t.x-fr.s[0]*TLEN/2,t.y-fr.s[1]*TLEN/2],[t.x+fr.s[0]*TLEN/2,t.y+fr.s[1]*TLEN/2]]),
+      {color:"#cde7ff",weight:3}).addTo(gTables);   /* нижній край — фасад */
+    L.marker(toLL(t.x,t.y),{draggable:true,icon:num(i+1)}).addTo(gTables)
+     .on("drag",function(e){
+        var c=e.target.getLatLng(), xy=toXY(c.lat,c.lng);
+        var trial={x:xy[0],y:xy[1],az:t.az};
+        if(fits(trial,state.plot)){ t.x=xy[0]; t.y=xy[1]; redrawShapes(); }
+      })
+     .on("dragend",function(){ draw(); shadows(); drawCorridor(); })
+     .on("click",function(){ selectTable(i); });
+  });
+  state.trees.forEach(function(tr,i){
+    L.circle(toLL(tr.x,tr.y),{radius:tr.r,color:tr.cut?"#6b7280":"#52c07a",weight:1.5,
+      fillOpacity:tr.cut?.08:.25,dashArray:tr.cut?"4 4":null}).addTo(gTrees);
+    L.marker(toLL(tr.x,tr.y),{draggable:true,icon:dot(tr.cut?"#6b7280":"#52c07a")}).addTo(gTrees)
+     .on("drag",function(e){ var c=e.target.getLatLng(); var xy=toXY(c.lat,c.lng); tr.x=xy[0]; tr.y=xy[1]; })
+     .on("dragend",function(){ draw(); shadows(); })
+     .on("click",function(){ selectTree(i); });
+  });
+  drawPh(); drawPlan(); setTimeout(sunChart,0);
+}
+
+/* ---------------- дерева з фото 02–03.10, точки зйомки, сонячна діаграма ---------------- */
+function phSave(){ try{ var o={}; PHT.forEach(function(t){o[t.id]=!!t.cut; if(t.prune) o[t.id+"_prune"]=t.prune;}); localStorage.setItem("solar.phtrees.v1",JSON.stringify(o)); }catch(e){} }
+function phUI(){
+  var box=document.getElementById("phbox"); if(!box) return;
+  if(HOR.mode!=="pts"){ box.innerHTML='<div class="hint">Яблуня й акації з фото враховуються лише в режимі «по точках».</div>'; return; }
+  var h='<label>Дерева, знайдені на фото 02–03.10</label>';
+  PHT.forEach(function(t,i){
+    var info=t.kind==="extra" ? '~'+t.h+' м, крони ажурні' : '~'+t.h+' м, '+(t.parts?'група ~':'крона ~')+Math.round(2*t.r)+' м';
+    h+='<label style="margin:4px 0;color:var(--ink)"><input type="checkbox" data-ph="'+i+'"'+(t.cut?' checked':'')+'> зрізано: '+t.name+
+       ' <span style="color:var(--dim)">('+info+')</span></label>'+
+       '<div class="row" style="align-items:center;margin:0 0 6px 22px"><span class="hint" style="margin:0">або вкоротити до, м</span>'+
+       '<input type="number" data-pr="'+i+'" value="'+(t.prune||"")+'" placeholder="—" step="0.5" min="0" style="width:70px"></div>';
+  });
+  h+='<div class="row" style="margin-top:6px"><button id="phimp" style="flex:1">Скільки коштують ці дерева</button></div><div id="phout"></div>';
+  box.innerHTML=h;
+  box.querySelectorAll("input[data-pr]").forEach(function(c){
+    c.onchange=function(){ var v=parseFloat(this.value); PHT[+this.dataset.pr].prune=(v>0)?v:0; phSave(); phBuild(); draw(); };
+  });
+  box.querySelectorAll("input[data-ph]").forEach(function(c){
+    c.onchange=function(){ PHT[+this.dataset.ph].cut=this.checked; phSave(); phBuild(); draw(); };
+  });
+  document.getElementById("phimp").onclick=function(){
+    var b=this; b.textContent="Рахую… кілька секунд";
+    setTimeout(function(){ phImpact(); b.textContent="Скільки коштують ці дерева"; },30);
+  };
+}
+function sumA(a){ return a.reduce(function(x,y){return x+y;},0); }
+function phImpact(){
+  var save=PHT.map(function(t){return t.cut;});
+  function run(){ phBuild(); return simulate(state.tables,state.trees); }
+  var saveP0=PHT.map(function(t){return t.prune||0;});
+  PHT.forEach(function(t){t.cut=false; t.prune=0;}); var base=run();
+  var rows=PHT.map(function(t,i){
+    PHT.forEach(function(u,j){u.cut=(j===i);}); var r=run();
+    return {name:t.name, per:r.per.map(function(v,k){return v-base.per[k];}), st:sumA(r.strict)-sumA(base.strict)};
+  });
+  var saveP=PHT.map(function(t){return t.prune||0;});
+  PHT.forEach(function(t,i){
+    PHT.forEach(function(u){u.cut=false; u.prune=0;});
+    [t.pruneTest||(t.kind==="extra"?10:4.5)].forEach(function(hp){
+      t.prune=hp; var r=run();
+      rows.push({name:"вкоротити: "+t.name.split(" ")[0].toLowerCase()+" до "+String(hp).replace(".",",")+" м",
+        per:r.per.map(function(v,k){return v-base.per[k];}), st:sumA(r.strict)-sumA(base.strict)});
+    });
+    t.prune=0;
+  });
+  PHT.forEach(function(t,i){t.prune=saveP[i];});
+  PHT.forEach(function(t){t.cut=true;}); var all=run();
+  rows.splice(PHT.length,0,{name:(PHT.length>2?"Усі разом":"Обидва разом"), per:all.per.map(function(v,k){return v-base.per[k];}), st:sumA(all.strict)-sumA(base.strict)});
+  PHT.forEach(function(t,i){t.cut=save[i]; t.prune=saveP0[i];}); phBuild();
+  var TAR=4.53, n=state.tables.length;
+  var h='<table><tr><th>Якщо зрізати</th>'+state.tables.map(function(_,k){return '<th class="n">ст.'+(k+1)+'</th>';}).join('')+'<th class="n">разом</th><th class="n">₴/рік</th></tr>';
+  rows.forEach(function(r){
+    var tot=sumA(r.per);
+    h+='<tr><td>'+r.name+'</td>'+r.per.map(function(v){return '<td class="n">+'+Math.round(v)+'</td>';}).join('')+
+       '<td class="n"><b>+'+Math.round(tot)+'</b></td><td class="n">+'+Math.round(tot*TAR).toLocaleString("uk-UA")+'</td></tr>';
+  });
+  h+='</table><div class="hint">кВт·год/рік (байпас-модель; у жорсткій стрінговій приріст '+rows.map(function(r){return '+'+Math.round(r.st);}).join(' / ')+').'+
+     ' Зараз, з деревами: '+Math.round(sumA(base.per)).toLocaleString("uk-UA")+' кВт·год/рік на '+n+' столи. Тариф 4,53 ₴/кВт·год. '+
+     'За 25 років помнож на ~22 (з деградацією панелей).</div>';
+  document.getElementById("phout").innerHTML=h;
+}
+function drawPh(){
+  if(!window.gPh) return; gPh.clearLayers();
+  if(typeof HPTS!=="undefined") HPTS.forEach(function(pt){
+    L.circleMarker(toLL(pt.x,pt.y),{radius:5,color:"#f5c518",weight:2,fillColor:"#10131a",fillOpacity:1}).addTo(gPh)
+     .bindPopup('<b>Точка зйомки '+pt.id+'</b><br>знято '+(pt.n*5)+'° обрію з 360°, камера на 0,65 м'+
+       (pt.img?'<br><a href="'+pt.img+'" target="_blank" rel="noopener">панорама з лінією обрію</a>':''));
+  });
+  if(HOR.mode!=="pts") return;
+  PHT.forEach(function(t){
+    var col=t.cut?"#6b7280":(t.kind==="extra"?"#e0a24f":"#ff7a59");
+    (t.parts||[[t.x,t.y]]).forEach(function(p){
+      L.circle(toLL(p[0],p[1]),{radius:t.pr||t.r,color:col,weight:2,fillColor:col,fillOpacity:t.cut?.05:.28,
+        dashArray:t.cut?"4 4":(t.kind==="extra"?"2 4":null)}).addTo(gPh)
+       .bindTooltip(t.name+', ~'+t.h+' м'+(t.cut?' — зрізано':''));
+    });
+  });
+}
+function sunChart(){
+  var cv=document.getElementById("sunchart"), sel=document.getElementById("sctab"); if(!cv||!sel) return;
+  if(sel.options.length!==state.tables.length){
+    var keep=+sel.value||0;
+    sel.innerHTML=state.tables.map(function(t,i){return '<option value="'+i+'">стіл '+(i+1)+'</option>';}).join('');
+    sel.value=String(Math.min(keep,state.tables.length-1));
+    sel.onchange=sunChart;
+  }
+  var ti=+sel.value||0, t=state.tables[ti]; if(!t) return;
+  var dpr=window.devicePixelRatio||1, W=cv.clientWidth||320, H=Math.round(W*0.66);
+  cv.width=W*dpr; cv.height=H*dpr; cv.style.height=H+"px";
+  var g=cv.getContext("2d"); g.setTransform(dpr,0,0,dpr,0,0); g.clearRect(0,0,W,H);
+  var L0=26,R0=6,T0=8,B0=20, A0=45,A1=315,E1=65;
+  function X(a){return L0+(a-A0)/(A1-A0)*(W-L0-R0);} function Y(e){return T0+(1-e/E1)*(H-T0-B0);}
+  g.font="10px -apple-system,Segoe UI,sans-serif"; g.lineWidth=1;
+  for(var e=0;e<=60;e+=10){ g.strokeStyle="#262c38"; g.beginPath(); g.moveTo(L0,Y(e)); g.lineTo(W-R0,Y(e)); g.stroke();
+    g.fillStyle="#98a3b4"; g.fillText(e+"°",2,Y(e)+3); }
+  [[45,"ПнС"],[90,"Сх"],[135,"ПдС"],[180,"Пд"],[225,"ПдЗ"],[270,"Зх"],[315,"ПнЗ"]].forEach(function(c){
+    g.strokeStyle="#262c38"; g.beginPath(); g.moveTo(X(c[0]),T0); g.lineTo(X(c[0]),H-B0); g.stroke();
+    g.fillStyle="#98a3b4"; g.textAlign="center"; g.fillText(c[1],X(c[0]),H-6); g.textAlign="left"; });
+  var S=tableSamples(t), lo=S[4*6+0], hi=S[4*6+5];
+  function hz(p,a){ return HOR.mode==="pts" ? horP(p,a) : horizonAt(a); }
+  /* акації — напівпрозорі силуети від середини стола */
+  if(HOR.mode==="pts") PHT.forEach(function(tr){
+    if(tr.kind!=="extra"||tr.cut) return;
+    tr.parts.forEach(function(pp){
+      var dx=pp[0]-lo[0], dy=pp[1]-lo[1], d=Math.hypot(dx,dy), az=(Math.atan2(dx,dy)/D2R+360)%360,
+          half=Math.asin(Math.min(1,tr.r/d))/D2R, top=Math.atan((ground(pp[0],pp[1])+tr.h-lo[2])/d)/D2R;
+      g.fillStyle="rgba(224,162,79,.28)"; g.fillRect(X(az-half),Y(top),X(az+half)-X(az-half),Y(0)-Y(top));
+    });
+  });
+  g.beginPath(); g.moveTo(X(A0),Y(0));
+  for(var a=A0;a<=A1;a+=1) g.lineTo(X(a),Y(Math.max(0,hz(lo,a))));
+  g.lineTo(X(A1),Y(0)); g.closePath(); g.fillStyle="rgba(82,192,122,.30)"; g.fill();
+  g.strokeStyle="#52c07a"; g.lineWidth=1.5; g.stroke();
+  g.beginPath(); for(a=A0;a<=A1;a+=1){ var v=Y(Math.max(0,hz(hi,a))); if(a===A0) g.moveTo(X(a),v); else g.lineTo(X(a),v); }
+  g.strokeStyle="#a7e3bd"; g.setLineDash([3,3]); g.lineWidth=1; g.stroke(); g.setLineDash([]);
+  var days=[[355,"21.12"],[21,"21.01"],[52,"21.02"],[80,"21.03"],[111,"21.04"],[141,"21.05"],[172,"21.06"]];
+  days.forEach(function(dd){
+    var doy=dd[0], off=isSummerTime(doy)?3:2, prev=null;
+    for(var hl=4;hl<=21.01;hl+=0.1){
+      var sp=sunpos(doy,hl-off);
+      if(sp.el<=0||sp.az<A0||sp.az>A1){ prev=null; continue; }
+      var x=X(sp.az), y=Y(sp.el), lit=sp.el>hz(lo,sp.az);
+      if(prev){ g.strokeStyle=lit?"#f5c518":"#5b6270"; g.lineWidth=lit?2:1.5; g.beginPath(); g.moveTo(prev[0],prev[1]); g.lineTo(x,y); g.stroke(); }
+      prev=[x,y];
+      if(Math.abs(hl-Math.round(hl))<0.05 && (doy===355||doy===172||doy===80)){
+        g.fillStyle=lit?"#f5c518":"#5b6270"; g.beginPath(); g.arc(x,y,2,0,7); g.fill();
+        if(Math.round(hl)%3===0){ g.fillStyle="#e7ecf3"; g.fillText(String(Math.round(hl)),x-5,y-5); }
+      }
+    }
+    var sp0=sunpos(doy,12.2-(isSummerTime(doy)?3:2)-1+1); g.fillStyle="#98a3b4"; g.fillText(dd[1],X(sp0.az)+4,Y(sp0.el)-3);
+  });
+  var w=[[355,"21.12"],[80,"21.03"],[172,"21.06"]].map(function(dd){ return dd[1]+" "+beamWindow(t,dd[0],state.trees,state.tables); });
+  document.getElementById("schint").innerHTML="Зелене — обрій для нижнього краю панелей, пунктир — для верхнього (3 м). "+
+    (HOR.mode==="pts"?"Помаранчеві смуги — акації (ажурні). ":"")+"Жовта дуга — сонце світить на низ стола, сіра — сховане. "+
+    "Цифри — київський час.<br>Сонце на столі "+(ti+1)+" (понад половину площі): "+w.join(" · ");
+}
+
+/* ---------------- план v4: прямокутник АБВГ і ніжки з креслення ---------------- */
+function drawPlan(){
+  if(!window.gPlan) return; gPlan.clearLayers();
+  var R=PLAN_V4.rect;
+  L.polygon(R.map(function(p){return toLL(p[0],p[1]);}),{color:"#ff9f43",weight:2,fill:false}).addTo(gPlan);
+  L.polyline([toLL(R[0][0],R[0][1]),toLL(R[3][0],R[3][1])],{color:"#4aa3ff",weight:4,opacity:.9}).addTo(gPlan)
+   .bindTooltip("А–Г: бік річки, вісь крайніх задніх ніжок; верхня кромка столів виходить за неї на 0,91 м, початок схилу ще за 1,30 м");
+  R.forEach(function(p,i){
+    L.marker(toLL(p[0],p[1]),{interactive:false,icon:L.divIcon({className:"",iconSize:[0,0],
+      html:'<div style="transform:translate(-50%,-130%);white-space:nowrap;font:600 12px -apple-system,sans-serif;color:#ffcf8a;text-shadow:0 0 3px #000,0 0 3px #000">'+PLAN_V4.names[i]+'</div>'})}).addTo(gPlan);
+    L.circleMarker(toLL(p[0],p[1]),{radius:4,color:"#ff9f43",weight:2,fillColor:"#10131a",fillOpacity:1,interactive:false}).addTo(gPlan);
+  });
+  PLAN_V4.piles.forEach(function(p){
+    L.circle(toLL(p[0],p[1]),{radius:0.15,color:"#e7ecf3",weight:1,fillColor:"#555",fillOpacity:1,interactive:false}).addTo(gPlan);
+  });
+}
+
+/* ---------------- траса кабелю і заземлення ---------------- */
+var RHO_CU=0.0175, IMP=14.0, VMP=700, PSTR=10000;   /* Ом·мм²/м, А, В, Вт на стрінг */
+var T4RES={x:-15.5,y:8,az:180};                    /* резервне місце 4-го стола */
+var INP=[-3.29,-3.07];                             /* ввід/лічильник: 4,5 м на ПдЗ по осі хліва від старої точки (0,0) */
+function routeGeom(){
+  var tabs=state.tables.map(function(t,i){return {i:i,t:t};});
+  tabs.sort(function(a,b){return Math.hypot(b.t.x,b.t.y)-Math.hypot(a.t.x,a.t.y);});   /* від дальнього до вводу */
+  var nodes=tabs.map(function(o){
+    var front=pileLL(o.t).filter(function(p){return p.n.indexOf("передня")===0;});
+    front.sort(function(a,b){return a.x-b.x;});
+    return {i:o.i,t:o.t,w:[front[0].x,front[0].y],e:[front[3].x,front[3].y]};
+  });
+  var seg=[];
+  for(var k=0;k<nodes.length-1;k++) seg.push({name:"стіл "+(nodes[k].i+1)+" → стіл "+(nodes[k+1].i+1),a:nodes[k].w,b:nodes[k+1].e,strings:k+1});
+  var last=nodes[nodes.length-1];
+  var f4=pileLL(T4RES).filter(function(p){return p.n.indexOf("передня")===0;}).sort(function(a,b){return a.x-b.x;});
+  var z4=[f4[3].x,f4[3].y];
+  seg.push({name:"стіл "+(last.i+1)+" → З4",a:last.e,b:z4,strings:nodes.length});
+  seg.push({name:"З4 → ввід",a:z4,b:INP,strings:nodes.length});
+  seg.forEach(function(s){ s.len=Math.hypot(s.a[0]-s.b[0],s.a[1]-s.b[1]); });
+  var frameL=PILES[PILES.length-1];
+  nodes.forEach(function(n,k){
+    var L=0; for(var j=k;j<seg.length;j++) L+=seg[j].len;
+    L+=frameL*(nodes.length-1-k);               /* уздовж рам ближчих столів */
+    n.oneway=L+frameL/2+6;                      /* + половина рами + спуски з панелей */
+  });
+  var trench=seg.reduce(function(a,x){return a+x.len;},0);
+  var spur={a:z4,b:z4,len:0};                 /* 4-й стіл сидить на магістралі: окремої траншеї не треба */
+  spur.oneway=seg[seg.length-1].len+frameL/2+6;
+  var rods=[];                                /* штирі не потрібні: 24 палі в бетоні вже є заземлювачем */
+  return {nodes:nodes,seg:seg,trench:trench,rods:rods,frameL:frameL,spur:spur,last:last,z4:z4,inp:INP};
+}
+function drawRoute(){
+  gRoute.clearLayers();
+  if(!state.tables.length) return;
+  var g=routeGeom();
+  g.seg.forEach(function(s){
+    L.polyline(LLs([s.a,s.b]),{color:"#ff8c42",weight:4,opacity:.9,dashArray:"9 6"}).addTo(gRoute)
+     .bindTooltip("траншея "+s.name+": "+s.len.toFixed(1)+" м, "+(2*s.strings)+" жили + катанка");
+  });
+  L.polygon(LLs(tableFoot(T4RES)),{color:"#9aa3ad",weight:1.5,fill:false,dashArray:"4 4",interactive:false}).addTo(gRoute);
+  g.nodes.forEach(function(n,k){
+    var boxAt=(k<g.nodes.length-1)?n.w:n.e;
+    if(k<g.nodes.length-1) L.polyline(LLs([n.e,n.w]),{color:"#ff8c42",weight:2,opacity:.7}).addTo(gRoute)
+      .bindTooltip("по рамі стола "+(n.i+1)+": "+g.frameL.toFixed(1)+" м");
+    L.marker(toLL(boxAt[0],boxAt[1]),{icon:L.divIcon({className:"",html:'<div style="width:16px;height:16px;background:#ff8c42;color:#1a1405;font:700 10px/16px sans-serif;text-align:center;border:2px solid #10131a">DC</div>',iconSize:[16,16],iconAnchor:[8,8]}),interactive:false}).addTo(gRoute);
+  });
+  g.rods.forEach(function(r){
+    L.marker(toLL(r.p[0],r.p[1]),{icon:L.divIcon({className:"",html:'<div style="width:0;height:0;border-left:8px solid transparent;border-right:8px solid transparent;border-bottom:14px solid #52c07a;filter:drop-shadow(0 0 1px #000)"></div>',iconSize:[16,14],iconAnchor:[8,7]})}).addTo(gRoute)
+     .bindTooltip(r.name);
+  });
+  var zk=[["З1",g.nodes[0].w],["З2",g.nodes[1]?g.nodes[1].w:null],["З3",g.last.e],["З4",g.z4],["З5 ввід",g.inp]];
+  zk.forEach(function(z){ if(!z[1]) return; L.marker(toLL(z[1][0],z[1][1]),{icon:L.divIcon({className:"",html:'<div style="margin-left:12px;margin-top:-6px;padding:0 4px;background:#10131a;color:#ffb37a;font:600 10px/14px sans-serif;border:1px solid #ff8c42;border-radius:3px;white-space:nowrap">'+z[0]+'</div>',iconSize:[0,0]}),interactive:false}).addTo(gRoute); });
+  L.marker(toLL(g.inp[0],g.inp[1]),{icon:L.divIcon({className:"",html:'<div style="width:18px;height:18px;border-radius:3px;background:#f5c518;color:#1a1405;font:700 10px/18px sans-serif;text-align:center;border:2px solid #10131a">⚡</div>',iconSize:[18,18],iconAnchor:[9,9]}),interactive:false}).addTo(gRoute);
+}
+
+function wiringSVG(g){
+  var ord=g.nodes.map(function(n){return n.i+1;});           /* порядок від дальнього: напр. [3,2,1] */
+  var W=740,H=470, X={}, y0=150;
+  var xs=[590,410,230]; ord.forEach(function(t,k){ X[t]=xs[k]; });
+  var o='<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;background:#0e1219;border:1px solid var(--line);border-radius:8px" xmlns="http://www.w3.org/2000/svg">';
+  o+='<style>text{font:11px sans-serif;fill:#cbd3df}.t{font-size:12px;font-weight:600;fill:#e7ecf3}.d{font-size:10px;fill:#95a1b3}</style>';
+  function table(t,x,dash,yy){
+    var y0=yy||150;
+    var st=dash?'stroke="#8a8d92" stroke-dasharray="5 4" fill="none"':'stroke="#4aa3ff" fill="#1c3b66"';
+    o+='<rect x="'+(x-70)+'" y="'+(y0-50)+'" width="140" height="60" rx="3" '+st+'/>';
+    o+='<text class="t" x="'+(x-64)+'" y="'+(y0-34)+'">'+(dash?'4-й стіл (резерв)':'стіл '+t)+'</text>';
+    o+='<text class="d" x="'+(x-64)+'" y="'+(y0-20)+'">'+(dash?'потім, паралельно до стола '+ord[ord.length-1]:'16 ФЕМ = 1 стрінг → MPPT '+t)+'</text>';
+    if(dash) return;
+    /* палі: 2 ряди × 4 */
+    var px=[x-55,x-20,x+15,x+50];
+    [y0+22,y0+42].forEach(function(py,r){ px.forEach(function(qx){ o+='<circle cx="'+qx+'" cy="'+py+'" r="4" fill="#9aa3ad" stroke="#10131a"/>'; }); });
+    if(dash) return;
+    /* перемички: обидва ряди по прогону + поперечні */
+    o+='<polyline points="'+px.map(function(qx){return qx+','+(y0+22);}).join(' ')+'" fill="none" stroke="#52c07a" stroke-width="2"/>';
+    o+='<polyline points="'+px.map(function(qx){return qx+','+(y0+42);}).join(' ')+'" fill="none" stroke="#52c07a" stroke-width="2"/>';
+    o+='<line x1="'+px[0]+'" y1="'+(y0+22)+'" x2="'+px[0]+'" y2="'+(y0+42)+'" stroke="#52c07a" stroke-width="2"/><line x1="'+px[3]+'" y1="'+(y0+22)+'" x2="'+px[3]+'" y2="'+(y0+42)+'" stroke="#52c07a" stroke-width="2"/>';
+    o+='<line x1="'+x+'" y1="'+(y0+10)+'" x2="'+x+'" y2="'+(y0+22)+'" stroke="#52c07a" stroke-width="2"/>';   /* рама → паля */
+    if(t===ord[0]) o+='<text class="d" x="'+(x-64)+'" y="'+(y0+62)+'">перемички ПуВ 6 мм² по прогонах і між палями, на кожному столі</text>';
+  }
+  ord.forEach(function(t){ table(t,X[t],false); });
+  table(4,230,true,340);
+  /* траншея: труба DN40 — від бокса дальнього стола до вводу */
+  var ty=y0+110, xin=60;
+  var trenchPts=[[X[ord[0]]-55,y0+42],[X[ord[0]]-55,ty]];
+  for(var k=1;k<ord.length;k++){ var xx=X[ord[k]]; trenchPts.push([xx+50,ty]); }
+  trenchPts.push([xin,ty],[xin,y0+20]);
+  o+='<polyline points="'+trenchPts.map(function(p){return p.join(',');}).join(' ')+'" fill="none" stroke="#ff8c42" stroke-width="6" opacity=".35"/>';
+  o+='<polyline points="'+trenchPts.map(function(p){return p.join(',');}).join(' ')+'" fill="none" stroke="#52c07a" stroke-width="2"/>';  /* катанка в тій самій траншеї */
+  /* стрінги: червона/чорна пара від середини стола до бокса, далі вздовж траншеї */
+  ord.forEach(function(t,k){
+    var x=X[t], bx=(k<ord.length-1)?x-55:x+50, by=y0+42;
+    o+='<line x1="'+(x-3)+'" y1="'+(y0+10)+'" x2="'+(bx-3)+'" y2="'+(by-8)+'" stroke="#e84545" stroke-width="1.6"/><line x1="'+(x+3)+'" y1="'+(y0+10)+'" x2="'+(bx+3)+'" y2="'+(by-8)+'" stroke="#111" stroke-width="1.6"/>';
+    o+='<rect x="'+(bx-8)+'" y="'+(by-6)+'" width="16" height="12" fill="#ff8c42" stroke="#10131a"/>';
+    if(k<ord.length-1) o+='<text class="d" x="'+(bx+10)+'" y="'+(by-8)+'">З'+(k+1)+' стояк Ø32</text>'; else o+='<text class="d" x="'+(bx-30)+'" y="'+(by+26)+'">З'+(k+1)+' стояк Ø32 · вузол (сюди всі стрінги)</text>';
+    if(k<ord.length-1){ /* далі по рамі наступного стола: пунктир по низу */
+      var nx=X[ord[k+1]]; o+='<line x1="'+(nx+50)+'" y1="'+(y0+50)+'" x2="'+(nx-55)+'" y2="'+(y0+50)+'" stroke="#e84545" stroke-width="1.2" stroke-dasharray="3 3"/>'; }
+  });
+  /* відвід на 4-й */
+  var lx=X[ord[ord.length-1]]+50;
+  o+='<polyline points="'+lx+','+ty+' '+lx+','+(y0+195)+'" fill="none" stroke="#9aa3ad" stroke-width="3" stroke-dasharray="4 6"/>';
+  o+='<rect x="'+(lx-8)+'" y="'+(ty+14)+'" width="16" height="12" fill="#9aa3ad" stroke="#10131a"/><text class="d" x="'+(lx+12)+'" y="'+(ty+24)+'">З4 стояк Ø32 — магістраль через нього</text>';
+  /* ввід */
+  o+='<rect x="'+(xin-40)+'" y="'+(y0-60)+'" width="130" height="80" rx="4" fill="#2a2412" stroke="#f5c518"/>';
+  o+='<text class="t" x="'+(xin-32)+'" y="'+(y0-42)+'">Ввід З5</text><text x="'+(xin-32)+'" y="'+(y0-26)+'">ПЗІП AC тип 1+2</text><text x="'+(xin-32)+'" y="'+(y0-12)+'">лічильник · ГЗШ</text><text x="'+(xin-32)+'" y="'+(y0+2)+'">інвертор X3-PRO</text><text class="d" x="'+(xin-32)+'" y="'+(y0+14)+'">ПЗІП DC вбудований</text>';
+  o+='<text class="d" x="'+(xin+8)+'" y="'+(ty+18)+'">катанка → ГЗШ</text>';
+  /* підписи траншеї */
+  o+='<text class="d" x="'+(X[ord[0]]-40)+'" y="'+(ty+18)+'">труба DN40 з протяжкою, 0,7 м; +/− стрінга разом</text>';
+  /* легенда */
+  var ly=H-52;
+  o+='<line x1="20" y1="'+ly+'" x2="50" y2="'+ly+'" stroke="#ff8c42" stroke-width="6" opacity=".35"/><text x="56" y="'+(ly+4)+'">траншея з трубою DN40</text>';
+  o+='<line x1="220" y1="'+ly+'" x2="250" y2="'+ly+'" stroke="#52c07a" stroke-width="2"/><text x="256" y="'+(ly+4)+'">катанка Ø10 / перемички 6 мм²</text>';
+  o+='<line x1="450" y1="'+ly+'" x2="480" y2="'+ly+'" stroke="#e84545" stroke-width="1.6"/><line x1="450" y1="'+(ly+4)+'" x2="480" y2="'+(ly+4)+'" stroke="#111" stroke-width="1.6"/><text x="486" y="'+(ly+4)+'">стрінг + / −</text>';
+  o+='<rect x="580" y="'+(ly-6)+'" width="16" height="12" fill="#ff8c42"/><text x="602" y="'+(ly+4)+'">стояк-закладна</text>';
+  o+='<circle cx="30" cy="'+(ly+22)+'" r="4" fill="#9aa3ad"/><text x="40" y="'+(ly+26)+'">паля в бетоні = електрод (24 шт ≈ 1–3 Ом)</text>';
+  o+='<text class="d" x="300" y="'+(ly+26)+'">схема принципова, не в масштабі; напрямок: ввід ліворуч, дальній стіл праворуч</text>';
+  return o+'</svg>';
+}
+
+function routeReport(){
+  var g=routeGeom(), html='<h3 style="margin:10px 0 4px">Траса кабелю</h3>';
+  html+='<table><tr><th>Стрінг</th><th class="n">шлях в один бік</th><th class="n">кабель ×2</th><th class="n">ΔU 6 мм²</th><th class="n">втрата/рік</th></tr>';
+  var cab=0, eloss=0;
+  g.nodes.slice().sort(function(a,b){return a.i-b.i;}).forEach(function(n){
+    var Lc=2*n.oneway, R=RHO_CU*Lc/6, dV=R*IMP, pl=100*dV*IMP/PSTR, el=0.62*pl;   /* 0,62 — енергозважений I²  */
+    cab+=Lc; eloss+=el;
+    html+='<tr><td>стіл '+(n.i+1)+'</td><td class="n">'+n.oneway.toFixed(0)+' м</td><td class="n">'+Lc.toFixed(0)+' м</td>'+
+      '<td class="n">'+dV.toFixed(1)+' В ('+(100*dV/VMP).toFixed(2)+'%)</td><td class="n">'+el.toFixed(2)+'% ≈ '+Math.round(el/100*10060)+' кВт·год</td></tr>';
+  });
+  var L4=2*g.spur.oneway, R4=RHO_CU*L4/6, dV4=R4*IMP, el4=0.62*100*dV4*IMP/PSTR;
+  html+='<tr style="color:var(--dim)"><td>4-й стіл (перспектива)</td><td class="n">'+g.spur.oneway.toFixed(0)+' м</td><td class="n">'+L4.toFixed(0)+' м</td><td class="n">'+dV4.toFixed(1)+' В ('+(100*dV4/VMP).toFixed(2)+'%)</td><td class="n">'+el4.toFixed(2)+'% ≈ '+Math.round(el4/100*10060)+' кВт·год</td></tr>';
+  html+='</table>';
+  var seg=g.seg, last=g.seg[g.seg.length-1];
+  var NT=state.tables.length;
+  var kUnder=g.frameL*Math.max(0,NT-2);        /* прохід під проміжними столами: крайні не перетинаємо */
+  var kTooth=2.6*(2*NT-1);                     /* зуб на другу палю: на крайньому столі 2,6 (катанка там починається), на решті 5,2 */
+  var kRises=1.2*NT*2+3;                       /* підйоми з траншеї до кожного затискача + заведення на ГЗШ і петля на З4 */
+  var strip=g.trench+kUnder+kTooth+kRises, Ls=g.trench;
+  var minCab=Math.ceil(cab/10)*10, resCab=Math.ceil(cab*1.1/10)*10;
+  html+='<div class="hint">Втрати при 4 мм²: ×1,5 (разом ≈'+Math.round(eloss/100*10060*1.5)+' кВт·год/рік проти '+Math.round(eloss/100*10060)+' при 6 мм²). Брати той переріз, що дешевший за метр: 6 мм² є від 36 ₴/м, 4 мм² від 38 ₴/м.</div>';
+  html+='<table><tr><th>Матеріал</th><th class="n">мінімум</th><th class="n">з запасом</th></tr>'+
+    '<tr><td>Сонячний кабель H1Z2Z2-K (червоний + чорний порівну)</td><td class="n">'+minCab+' м</td><td class="n">'+resCab+' м</td></tr>'+
+    '<tr><td>Труба ПНД двостінна DN40 з протяжкою, одна на всю траншею</td><td class="n">DN40 '+Math.ceil(g.trench/5)*5+' м</td><td class="n">DN40 '+Math.ceil(g.trench*1.15/5)*5+' м + DN50 на магістраль</td></tr>'+
+    '<tr><td>ПЕ Ø32 на стояки біля паль і ввід</td><td class="n">'+(state.tables.length*2+2)+' м</td><td class="n">12 м</td></tr>'+
+    '<tr><td>Конектори MC4 1500 В, пар</td><td class="n">'+(state.tables.length*2)+'</td><td class="n">'+(state.tables.length*2+4)+'</td></tr>'+
+    '<tr><td>Бокс DC з роз\'єднувачем і ПЗІП тип 2 на вузлі</td><td class="n">— (є в інверторі)</td><td class="n">1</td></tr>'+
+    '<tr><td>Катанка оцинкована Ø10 у траншеї (Ø8 = 50 мм² — рівно мінімум ДСТУ, без запасу на корозію)</td><td class="n">Ø10 '+Math.ceil(strip/5)*5+' м</td><td class="n">Ø10 '+Math.ceil(strip*1.1/5)*5+' м</td></tr>'+
+    '<tr><td>Штирі 2 м / кутник 50×50×5</td><td class="n">не потрібні</td><td class="n">не потрібні</td></tr>'+
+    '<tr><td>ПуВ 6 мм² жовто-зелений, перемички рам → палі</td><td class="n">'+Math.round(state.tables.length*10)+' м</td><td class="n">'+Math.round(state.tables.length*(g.frameL+6)*1.2)+' м</td></tr>'+
+    '<tr><td>ПуВ 10 мм² катанка → ГЗШ будинку</td><td class="n">— (катанка сама заходить до ГЗШ)</td><td class="n">'+Math.round(last.len+6)+' м</td></tr>'+
+    '<tr><td>Затискачі катанка–паля (по 2 на стіл: передня + задня) + контрольний роз\'єм</td><td class="n">'+(state.tables.length*2+1)+'</td><td class="n">'+(state.tables.length*2+2)+'</td></tr>'+
+    '<tr><td>ПЗІП AC тип 1+2 на ввід (умова гарантії) · ПЗІП DC тип 2 у боксі на вузлі</td><td class="n">1 + 1</td><td class="n">1 + 1</td></tr></table>';
+  html+='<div class="hint">Мінімум ≈ '+Math.round(minCab*38/100)*100+' ₴ кабель + '+Math.round(Math.ceil(strip/5)*5*70/100)*100+' ₴ катанка Ø10 + '+Math.round(g.trench*40/100)*100+' ₴ труба + ~900 ₴ затискачі й MC4 + 2 000–3 500 ₴ ПЗІП AC ≈ <b>'+Math.round((minCab*38+Math.ceil(strip/5)*5*70+g.trench*40+900+2500)/500)*500+' ₴</b> (штирі й контур навколо масиву прибрані; ціни OLX/Prom 09.2026).</div>';
+  html+='<table><tr><th>Траншея</th><th class="n">довжина</th><th class="n">жил DC</th><th>примітка</th></tr>';
+  g.seg.forEach(function(x){ html+='<tr><td>'+x.name+'</td><td class="n">'+x.len.toFixed(1)+' м</td><td class="n">'+(2*x.strings)+'</td><td>'+(x===last?'магістраль: 6 жил зараз (26 %), 8 зі столом 4 (35 %) — DN40 вистачає':'DN40 одна на всю трасу')+'</td></tr>'; });
+  html+='<tr><td><b>разом</b></td><td class="n"><b>'+g.trench.toFixed(1)+' м</b></td><td class="n">—</td><td>глибина 0,7 м, під проїздом 1,0 м; сигнальна стрічка на 0,25 м вище</td></tr>'+
+    '<tr style="color:var(--dim)"><td>перспектива: 4-й стіл</td><td class="n">0 м</td><td class="n">+2</td><td>магістраль іде через З4 — окремої траншеї не треба, лише затягнути 2 жили в наявну трубу</td></tr></table>';
+  html+='<h3 style="margin:10px 0 4px">Звідки береться катанка</h3><table><tr><th>Складова</th><th class="n">м</th><th>чому</th></tr>'+
+    '<tr><td>траншея по трасі</td><td class="n">'+g.trench.toFixed(1)+'</td><td>сума сегментів нижче</td></tr>'+
+    '<tr><td>прохід під проміжними столами</td><td class="n">'+kUnder.toFixed(1)+'</td><td>катанка входить зі сходу, виходить із заходу — мусить перетнути стіл</td></tr>'+
+    '<tr><td>зуб на другу палю</td><td class="n">'+kTooth.toFixed(1)+'</td><td>2,6 туди й назад на кожному столі; на дальньому лише 2,6 — катанка там починається</td></tr>'+
+    '<tr><td>підйоми до затискачів, ГЗШ, петля на З4</td><td class="n">'+kRises.toFixed(1)+'</td><td>0,7 м угору з дна + вихід над землею на кожну з '+(NT*2)+' паль</td></tr>'+
+    '<tr><td><b>разом</b></td><td class="n"><b>'+strip.toFixed(1)+'</b></td><td>з 10 % на вигини й заведення — <b>'+Math.ceil(strip*1.1/5)*5+' м</b></td></tr>'+
+    '<tr style="color:var(--dim)"><td>якщо затискач один на стіл, а не два</td><td class="n">'+(strip-kTooth-1.2*NT).toFixed(1)+'</td><td>зуб відпадає; дозволено, якщо стик кроква–стійка має зубчасту шайбу і прозвонено</td></tr></table>';
+  html+='<div class="hint">Плюс і мінус одного стрінга — в одній трубі (мала петля для перенапруг). Уздовж рам ближчих столів кабель іде по конструкції стяжками, не в землі. Роз\'єднувач DC і ПЗІП тип 2 DC вбудовані в X3-PRO, окремий бокс — лише з запасом.</div>';
+  html+='<h3 style="margin:10px 0 4px">Схема закладних, прокладки і перемичок</h3>'+wiringSVG(g);
+  html+='<h3 style="margin:10px 0 4px">Заземлення</h3>';
+  html+='<table><tr><th>Питомий опір ґрунту</th><th class="n">штир 2 м</th><th class="n">катанка '+Ls.toFixed(0)+' м</th><th class="n">разом ('+g.rods.length+' штирі + катанка, k=0,8)</th></tr>';
+  [50,100,150].forEach(function(rho){
+    var L=2, d=0.0475, Rr=rho/(2*Math.PI*L)*Math.log(4*L/d), Rs=rho/(2*Math.PI*Ls)*Math.log(Ls*Ls/(0.01*0.7));
+    var Rt=1/(1/Rs+g.rods.length/Rr)/0.8;
+    html+='<tr><td>'+rho+' Ом·м ('+(rho<=50?"вологий суглинок заплави":(rho<=100?"суглинок звичайний":"сухий супісок"))+')</td><td class="n">'+Rr.toFixed(0)+' Ом</td><td class="n">'+Rs.toFixed(1)+' Ом</td><td class="n"><b>'+Rt.toFixed(1)+' Ом</b></td></tr>';
+  });
+  html+='</table><div class="hint">Якщо палі — сталеві стійки в бетоні по 1 м (ø300), вони самі є заземлювачем: 8 паль стола ≈ 2–7 Ом, усі 24 ≈ 1–3 Ом; катанка тоді лише зв\'язує столи й ГЗШ (або ПуВ 10 мм² у трубі), штирі не потрібні. Норма ПУЕ для повторного заземлення PEN на вводі — 30 Ом, палі перекривають її на порядок, тому окремі штирі й контур навколо масиву зняті. Обов\'язкове натомість інше: один провідник столи → ГЗШ (це і є катанка) і ПЗІП AC на вводі. Заміряти кожен стіл після монтажу, протокол у пакет для обленерго.</div>';
+  return html;
+}
+
+function redrawShapes(){ /* легке перемалювання під час перетягування */ shadows(); }
+function dot(c){ return L.divIcon({className:"",html:'<div style="width:11px;height:11px;border-radius:50%;background:'+c+';border:2px solid #10131a"></div>',iconSize:[11,11],iconAnchor:[6,6]}); }
+function num(n){ return L.divIcon({className:"",html:'<div style="width:22px;height:22px;border-radius:50%;background:#4aa3ff;color:#06213f;font:600 12px/22px sans-serif;text-align:center;border:2px solid #10131a">'+n+'</div>',iconSize:[22,22],iconAnchor:[11,11]}); }
+
+/* ---------------- тіні на карті ---------------- */
+function currentSun(){
+  var doy=+document.getElementById("doy").value, h=+document.getElementById("hour").value;
+  var utc=h-(isSummerTime(doy)?3:2);
+  return {doy:doy, h:h, sp:sunpos(doy,utc)};
+}
+function shadows(){
+  gShadow.clearLayers();
+  var cur=currentSun(), el=cur.sp.el, az=cur.sp.az;
+  document.getElementById("elab").textContent=el.toFixed(0)+"°";
+  var d=new Date(2025,0,1); d.setDate(cur.doy);
+  document.getElementById("dlab").textContent=d.toLocaleDateString("uk-UA",{day:"numeric",month:"long"});
+  var hh=Math.floor(cur.h), mm=Math.round((cur.h-hh)*60);
+  document.getElementById("tlab").textContent=("0"+hh).slice(-2)+":"+("0"+mm).slice(-2);
+  drawCanopyShadow(el,az);
+  if(el<=0.5) return;
+  var k=1/Math.tan(el*Math.PI/180), ux=-Math.sin(az*Math.PI/180), uy=-Math.cos(az*Math.PI/180);
+  state.trees.forEach(function(tr){
+    if(tr.cut) return;
+    var sx=tr.x+ux*tr.h*k, sy=tr.y+uy*tr.h*k, poly=[], i;
+    for(i=0;i<=16;i++){ var a=Math.PI*2*i/16; poly.push([tr.x+Math.cos(a)*tr.r, tr.y+Math.sin(a)*tr.r]); }
+    var poly2=poly.map(function(p){return [p[0]+ux*tr.h*k, p[1]+uy*tr.h*k];});
+    L.polygon(LLs(convexHull(poly.concat(poly2))),{color:"#000",weight:0,fillColor:"#000",fillOpacity:.45,interactive:false}).addTo(gShadow);
+  });
+  state.buildings.forEach(function(b){
+    var g=ground(b.x,b.y), base=bldCorners(b), top=base.map(function(p){ return [p[0]+ux*b.h*k, p[1]+uy*b.h*k]; });
+    L.polygon(LLs(convexHull(base.concat(top))),{color:"#000",weight:0,fillColor:"#000",fillOpacity:.5,interactive:false}).addTo(gShadow);
+  });
+  state.tables.forEach(function(t){
+    var g0=ground(t.x,t.y);
+    var c=tableCorners(t), sh=c.map(function(p){ return [p[0]+ux*(p[2]-g0)*k, p[1]+uy*(p[2]-g0)*k]; });
+    L.polygon(LLs(convexHull(sh)),{color:"#000",weight:0,fillColor:"#000",fillOpacity:.5,interactive:false}).addTo(gShadow);
+  });
+}
+
+var canShadowLayer=null;
+function drawCanopyShadow(el,az){
+  if(canShadowLayer){ map.removeLayer(canShadowLayer); canShadowLayer=null; }
+  if(!CAN.on || el<=1) return;
+  var ux=Math.sin(az*Math.PI/180), uy=Math.cos(az*Math.PI/180), tg=Math.tan(el*Math.PI/180);
+  var sc=3, cv=document.createElement("canvas");
+  cv.width=CAN.nx*sc; cv.height=CAN.ny*sc;
+  var g=cv.getContext("2d");
+  g.fillStyle="rgba(0,0,0,.42)";
+  for(var j=0;j<CAN.ny;j++) for(var i=0;i<CAN.nx;i++){
+    var x=CAN.X0+i+0.5, y=CAN.Y0+j+0.5, shaded=false;
+    for(var d=1; d<=90; d++){
+      var z=d*tg; if(z>24) break;
+      var k=canIdx(x+ux*d, y+uy*d); if(k<0) continue;
+      if(CAN.h[k]>=z){ shaded=true; break; }
+    }
+    if(shaded) g.fillRect(i*sc,(CAN.ny-1-j)*sc,sc,sc);
+  }
+  var sw=toLL(CAN.X0,CAN.Y0), ne=toLL(CAN.X0+CAN.nx, CAN.Y0+CAN.ny);
+  canShadowLayer=L.imageOverlay(cv.toDataURL(),[[sw[0],sw[1]],[ne[0],ne[1]]],{pane:"hm",opacity:1,interactive:false});
+  canShadowLayer.addTo(map);
+}
+function convexHull(pts){
+  var p=pts.slice().sort(function(a,b){return a[0]-b[0]||a[1]-b[1];});
+  function cross(o,a,b){return (a[0]-o[0])*(b[1]-o[1])-(a[1]-o[1])*(b[0]-o[0]);}
+  var lo=[],hi=[],i;
+  for(i=0;i<p.length;i++){ while(lo.length>=2&&cross(lo[lo.length-2],lo[lo.length-1],p[i])<=0)lo.pop(); lo.push(p[i]); }
+  for(i=p.length-1;i>=0;i--){ while(hi.length>=2&&cross(hi[hi.length-2],hi[hi.length-1],p[i])<=0)hi.pop(); hi.push(p[i]); }
+  lo.pop(); hi.pop(); return lo.concat(hi);
+}
+
+/* ---------------- клік по карті ---------------- */
+map.on("click",function(e){
+  var xy=toXY(e.latlng.lat,e.latlng.lng);
+  if(mode==="none"){
+    var h=hmAt(xy[0],xy[1]);
+    if(h!==null){
+      var txt = h>=12 ? "тут можна що завгодно — тінь не дістає до столів"
+        : "гранична висота тут ≈ "+h.toFixed(1)+" м; усе, що вище, забирає понад "+HM_TOL+" кВт·год/рік";
+      L.popup().setLatLng(e.latlng).setContent('<div style="color:#10131a">'+txt+"</div>").openOn(map);
+    }
+    return;
+  }
+  if(mode==="bld"){
+    state.buildings.push({x:xy[0],y:xy[1],w:8,l:5,az:47,h:4,name:"будівля "+(state.buildings.length+1)});
+    draw(); shadows(); selectBuilding(state.buildings.length-1); return;
+  }
+  if(mode==="cut"){
+    var r=+document.getElementById("cutr").value||5;
+    cutCircle(xy[0],xy[1],r,0); drawCanopy(); shadows(); return;
+  }
+  if(mode==="tree"){ state.trees.push({x:xy[0],y:xy[1],r:3,h:8,cut:false,name:"дерево "+(state.trees.length+1)});
+    draw(); shadows(); selectTree(state.trees.length-1); }
+  else if(mode==="edge"){ state.plot.push(xy); draw(); }
+});
+function setMode(m){
+  mode=m;
+  ["none","tree","bld","cut","edge"].forEach(function(k){ document.getElementById("m-"+k).classList.toggle("on",k===m); });
+}
+document.getElementById("m-none").onclick=function(){setMode("none");};
+document.getElementById("m-tree").onclick=function(){setMode("tree");};
+document.getElementById("m-bld").onclick=function(){setMode("bld");};
+document.getElementById("m-cut").onclick=function(){setMode("cut");};
+document.getElementById("m-edge").onclick=function(){setMode("edge");};
+document.getElementById("canon").onchange=function(){ CAN.on=this.checked; drawCanopy(); shadows(); };
+document.getElementById("calcday").onclick=showDay;
+document.getElementById("hormode").onchange=function(){ HOR.mode=this.value; HOR.on=(this.value!=="off"); phUI(); sunChart(); };
+document.getElementById("corr").onchange=drawCorridor;
+document.getElementById("corrw").oninput=drawCorridor;
+document.getElementById("canrestore").onclick=function(){ restoreCanopy(); drawCanopy(); shadows(); };
+
+/* ---------------- панель вибраного ---------------- */
+function selectTree(i){
+  var tr=state.trees[i];
+  document.getElementById("sel").innerHTML=
+    '<table><tr><th>'+tr.name+'</th><td class="n"><button id="del">видалити</button></td></tr></table>'+
+    '<label>Висота, м</label><input type="number" id="th" value="'+tr.h+'" step="0.5" min="0.5">'+
+    '<label>Радіус крони, м</label><input type="number" id="tr" value="'+tr.r+'" step="0.5" min="0.5">'+
+    '<label><input type="checkbox" id="tc" '+(tr.cut?"checked":"")+'> зрізане (тінь не кидає)</label>';
+  document.getElementById("th").oninput=function(){ tr.h=+this.value; shadows(); };
+  document.getElementById("tr").oninput=function(){ tr.r=+this.value; draw(); shadows(); };
+  document.getElementById("tc").onchange=function(){ tr.cut=this.checked; draw(); shadows(); };
+  document.getElementById("del").onclick=function(){ state.trees.splice(i,1); document.getElementById("sel").innerHTML=""; draw(); shadows(); };
+}
+function selectBuilding(i){
+  var b=state.buildings[i];
+  document.getElementById("sel").innerHTML=
+    '<table><tr><th>'+b.name+'</th><td class="n"><button id="delb">видалити</button></td></tr></table>'+
+    '<label>Висота до гребеня, м</label><input type="number" id="bh" value="'+b.h+'" step="0.5" min="1">'+
+    '<label>Довжина × ширина, м</label><div class="row">'+
+    '<input type="number" id="bw" value="'+b.w+'" step="0.5" style="flex:1">'+
+    '<input type="number" id="bl" value="'+b.l+'" step="0.5" style="flex:1"></div>'+
+    '<label>Поворот, °</label><input type="range" id="baz" min="0" max="180" value="'+b.az+'">';
+  ["bh","bw","bl","baz"].forEach(function(id){
+    document.getElementById(id).oninput=function(){
+      b[{bh:"h",bw:"w",bl:"l",baz:"az"}[id]]=+this.value; draw(); shadows();
+    };
+  });
+  document.getElementById("delb").onclick=function(){ state.buildings.splice(i,1);
+    document.getElementById("sel").innerHTML=""; draw(); shadows(); };
+}
+function selectTable(i){
+  var t=state.tables[i];
+  document.getElementById("sel").innerHTML=
+    '<table><tr><th>Стіл '+(i+1)+'</th><td class="n mono">'+toLL(t.x,t.y)[0].toFixed(6)+', '+toLL(t.x,t.y)[1].toFixed(6)+'</td></tr></table>'+
+    '<label>Азимут фасаду, ° (180 = точно на південь)</label>'+
+    '<input type="range" id="taz" min="120" max="240" step="1" value="'+t.az+'">'+
+    '<div class="mono" id="tazl">'+t.az+'°</div>';
+  document.getElementById("taz").oninput=function(){ t.az=+this.value;
+    document.getElementById("tazl").textContent=t.az+"°"; draw(); shadows(); };
+}
+
+/* ---------------- полігон: допоміжне ---------------- */
+function inside(poly,p){
+  var c=false,n=poly.length;
+  for(var i=0,j=n-1;i<n;j=i++){
+    var xi=poly[i][0],yi=poly[i][1],xj=poly[j][0],yj=poly[j][1];
+    if(((yi>p[1])!==(yj>p[1])) && p[0]<(xj-xi)*(p[1]-yi)/(yj-yi)+xi) c=!c;
+  }
+  return c;
+}
+function shrink(poly,d){
+  var n=poly.length, area=0, i;
+  for(i=0;i<n;i++){ var a=poly[i], b=poly[(i+1)%n]; area+=a[0]*b[1]-b[0]*a[1]; }
+  var sgn=area>0?1:-1;
+  var lines=[];
+  for(i=0;i<n;i++){
+    var p1=poly[i], p2=poly[(i+1)%n];
+    var dx=p2[0]-p1[0], dy=p2[1]-p1[1], L=Math.hypot(dx,dy)||1;
+    var nx=-dy/L*sgn, ny=dx/L*sgn;
+    lines.push([p1[0]+nx*d, p1[1]+ny*d, dx/L, dy/L]);
+  }
+  var out=[];
+  for(i=0;i<n;i++){
+    var A=lines[(i-1+n)%n], B=lines[i];
+    var det=A[2]*(-B[3])-A[3]*(-B[2]);
+    if(Math.abs(det)<1e-9){ out.push([B[0],B[1]]); continue; }
+    var rx=B[0]-A[0], ry=B[1]-A[1];
+    var t=(rx*(-B[3])-ry*(-B[2]))/det;
+    out.push([A[0]+A[2]*t, A[1]+A[3]*t]);
+  }
+  return out;
+}
+function polyDist(P,Q){
+  function segd(a,b,p){
+    var vx=b[0]-a[0], vy=b[1]-a[1], wx=p[0]-a[0], wy=p[1]-a[1];
+    var t=Math.max(0,Math.min(1,(vx*wx+vy*wy)/(vx*vx+vy*vy||1)));
+    return Math.hypot(a[0]+vx*t-p[0], a[1]+vy*t-p[1]);
+  }
+  var m=1e9,i,j;
+  for(i=0;i<P.length;i++) for(j=0;j<Q.length;j++){
+    m=Math.min(m, segd(P[i],P[(i+1)%P.length],Q[j]), segd(Q[j],Q[(j+1)%Q.length],P[i]));
+  }
+  return m;
+}
+function southClear(t,poly){
+  var fr=frame(t.az), d;
+  for(d=1; d<=30; d++){ if(!inside(poly,[t.x+fr.f[0]*d, t.y+fr.f[1]*d])) return d-1; }
+  return 30;
+}
+function fits(t,poly){ return tableFoot(t).every(function(p){return inside(poly,p);}); }
+function overlaps(a,b){
+  var A=tableFoot(a),B=tableFoot(b);
+  function sep(P,Q){
+    for(var s=0;s<2;s++){ var poly=s?Q:P;
+      for(var i=0;i<poly.length;i++){
+        var x1=poly[i][0],y1=poly[i][1],x2=poly[(i+1)%poly.length][0],y2=poly[(i+1)%poly.length][1];
+        var nx=y2-y1, ny=-(x2-x1), L=Math.hypot(nx,ny); nx/=L; ny/=L;
+        var p1=P.map(function(p){return nx*p[0]+ny*p[1];}), p2=Q.map(function(p){return nx*p[0]+ny*p[1];});
+        if(Math.max.apply(null,p1)<Math.min.apply(null,p2)-0.5 || Math.max.apply(null,p2)<Math.min.apply(null,p1)-0.5) return true;
+      }
+    }
+    return false;
+  }
+  return !sep(A,B);
+}
+
+
+/* ---------------- проїзд уздовж межі ---------------- */
+function edgeInfo(poly,i){
+  var p1=poly[i], p2=poly[(i+1)%poly.length];
+  var dx=p2[0]-p1[0], dy=p2[1]-p1[1], L=Math.hypot(dx,dy)||1;
+  var area=0, n=poly.length;
+  for(var k=0;k<n;k++){ var a=poly[k], b=poly[(k+1)%n]; area+=a[0]*b[1]-b[0]*a[1]; }
+  var sgn=area>0?1:-1;
+  var inx=-dy/L*sgn, iny=dx/L*sgn;                  /* внутрішня нормаль */
+  var az=(Math.atan2(-inx,-iny)*180/Math.PI+360)%360; /* куди дивиться межа назовні */
+  return {p1:p1, nx:inx, ny:iny, len:L, az:az, name:compassAdj(az)+" межа, "+Math.round(L)+" м"};
+}
+function distIntoPlot(t,e){                         /* мін. відстань кутів столу від межі всередину */
+  var m=1e9;
+  tableFoot(t).forEach(function(p){
+    var d=(p[0]-e.p1[0])*e.nx+(p[1]-e.p1[1])*e.ny;
+    if(d<m) m=d;
+  });
+  return m;
+}
+function compassAdj(b){
+  var n=["північна","північно-східна","східна","південно-східна","південна","південно-західна","західна","північно-західна"];
+  return n[Math.round(((b%360)+360)%360/45)%8];
+}
+function fillCorridorSelect(){
+  var sel=document.getElementById("corr"); if(!sel) return;
+  var cur=sel.value;
+  var html='<option value="-1">нема (столи де завгодно)</option>';
+  state.plot.forEach(function(p,i){ html+='<option value="'+i+'">'+edgeInfo(state.plot,i).name+'</option>'; });
+  sel.innerHTML=html;
+  if(cur!==null && cur!=="" && +cur<state.plot.length) sel.value=cur;
+}
+var corrLayer=null;
+function drawCorridor(){
+  if(corrLayer){ map.removeLayer(corrLayer); corrLayer=null; }
+  var i=+document.getElementById("corr").value;
+  if(!(i>=0)) return;
+  var w=+document.getElementById("corrw").value||0, e=edgeInfo(state.plot,i);
+  var p1=e.p1, p2=state.plot[(i+1)%state.plot.length];
+  var band=[[p1[0],p1[1]],[p2[0],p2[1]],[p2[0]+e.nx*w,p2[1]+e.ny*w],[p1[0]+e.nx*w,p1[1]+e.ny*w]];
+  corrLayer=L.polygon(LLs(band),{color:"#8b5cf6",weight:1.5,fillColor:"#8b5cf6",fillOpacity:.22,
+    dashArray:"6 4",interactive:false}).addTo(map);
+}
+
+/* ---------------- розрахунок ---------------- */
+var MONTHS=["","січ","лют","бер","кві","тра","чер","лип","сер","вер","жов","лис","гру"];
+function report(res){
+  var tot=res.per.reduce(function(a,b){return a+b;},0), full=res.unsh.reduce(function(a,b){return a+b;},0);
+  var loss=100*(1-tot/full);
+  var worst=Object.keys(res.worst).map(function(k){var p=k.split("|");
+    return {mo:+p[0],hh:+p[1],v:res.worst[k]};}).sort(function(a,b){return b.v-a.v;}).slice(0,3);
+  var st=(res.strict||[]).reduce(function(a,b){return a+b;},0);
+  var html='<div class="big">'+Math.round(tot).toLocaleString("uk-UA")+' <span>кВт·год/рік</span></div>'+
+    '<div class="hint">без жодної тіні було б '+Math.round(full).toLocaleString("uk-UA")+
+    ' · втрата на тінях <b style="color:'+(loss>3?"var(--bad)":"var(--ok)")+'">'+loss.toFixed(1)+'%</b></div>'+
+    (st?'<div class="hint">найгірший розклад для стрінга (без байпасу, MPPT сідає на затінену панель): <b>'+
+      Math.round(st).toLocaleString("uk-UA")+'</b> кВт·год — реальність між цими двома числами, ближче до верхнього</div>':'')+
+    '<table><tr><th>Стіл</th><th class="n">кВт·год/рік</th><th class="n">тінь</th><th class="n">видно неба</th></tr>';
+  res.per.forEach(function(v,i){
+    html+='<tr><td>'+(i+1)+'</td><td class="n">'+Math.round(v).toLocaleString("uk-UA")+
+      '</td><td class="n">'+(100*(1-v/res.unsh[i])).toFixed(1)+'%</td><td class="n">'+
+      Math.round(100*skyView(state.tables[i],state.trees,state.tables))+'%</td></tr>';
+  });
+  html+='</table><table><tr><th>Стіл</th><th class="n">сонце на панелях 21 черв</th><th class="n">21 груд</th></tr>';
+  state.tables.forEach(function(t,i){
+    html+='<tr><td>'+(i+1)+'</td><td class="n mono">'+beamWindow(t,172,state.trees,state.tables)+
+      '</td><td class="n mono">'+beamWindow(t,355,state.trees,state.tables)+'</td></tr>';
+  });
+  html+='</table><div class="hint">Це найкраща перевірка моделі: подивись увечері, коли насправді тінь накриває місце — якщо раніше, підніми висоти дерев або домалюй їх.</div>'+
+    '<canvas id="bars" width="640" height="220"></canvas>';
+  if(worst.length) html+='<div class="hint">Найбільше втрат: '+worst.map(function(w){
+      return MONTHS[w.mo]+" "+(w.hh+(isSummerTime(w.mo*30)?3:2))+":00 (−"+Math.round(w.v)+" кВт·год)";}).join(", ")+'</div>';
+  if(state.trees.length) html+='<div id="treerank"></div>';
+  document.getElementById("out").innerHTML=html;
+  bars(res.monthly);
+  if(state.trees.length) treeRank(tot,res.attr||{});
+  stakeout();
+}
+function bars(m){
+  var c=document.getElementById("bars"); if(!c) return;
+  var g=c.getContext("2d"), W=c.width, H=c.height, max=Math.max.apply(null,m.slice(1));
+  g.clearRect(0,0,W,H);
+  for(var i=1;i<=12;i++){
+    var h=(m[i]/max)*(H-34), x=(i-1)*(W/12)+6, w=W/12-12;
+    g.fillStyle="#f5c518"; g.fillRect(x,H-20-h,w,h);
+    g.fillStyle="#98a3b4"; g.font="16px sans-serif"; g.textAlign="center";
+    g.fillText(MONTHS[i],x+w/2,H-4);
+  }
+}
+function compass(b){
+  var names=["північ","північний схід","схід","південний схід","південь","південний захід","захід","північний захід"];
+  return names[Math.round(((b%360)+360)%360/45)%8];
+}
+function treeImpact(idx,base){
+  var tr=state.trees[idx], oldh=tr.h, oldc=tr.cut;
+  tr.cut=true;
+  var gain=simulate(state.tables,state.trees).per.reduce(function(a,b){return a+b;},0)-base;
+  tr.cut=oldc;
+  var hcrit=null;
+  if(gain>30){                                    /* до якої висоти достатньо вкоротити */
+    var lo=0.5, hi=oldh;
+    for(var it=0; it<6; it++){
+      var mid=(lo+hi)/2; tr.h=mid;
+      var v=simulate(state.tables,state.trees).per.reduce(function(a,b){return a+b;},0);
+      if(v>=base+0.95*gain) lo=mid; else hi=mid;
+    }
+    tr.h=oldh; hcrit=lo;
+  }
+  return {gain:gain, hcrit:hcrit};
+}
+function treeRank(base,attr){
+  var box=document.getElementById("treerank"); if(!box) return;
+  box.innerHTML='<h2>Що зрізати</h2><div class="hint">Рахую кожне дерево…</div>';
+  setTimeout(function(){
+    var rows=[];
+    state.trees.forEach(function(tr,i){
+      if(tr.cut) return;
+      var a=attr[i];
+      if(!a || a.kwh<5) return;
+      var imp=treeImpact(i,base);
+      if(imp.gain<5) return;
+      /* найближчий стіл і напрямок від нього */
+      var best=0,bd=1e9;
+      state.tables.forEach(function(t,k){ var d=Math.hypot(t.x-tr.x,t.y-tr.y); if(d<bd){bd=d;best=k;} });
+      var br=Math.atan2(tr.x-state.tables[best].x, tr.y-state.tables[best].y)*180/Math.PI;
+      var mo=Object.keys(a.mo).sort(function(x,y){return a.mo[y]-a.mo[x];}).slice(0,3).map(Number).sort(function(x,y){return x-y;});
+      var hh=Object.keys(a.hh).map(Number).sort(function(x,y){return x-y;});
+      var tabs=Object.keys(a.tab).sort(function(x,y){return a.tab[y]-a.tab[x];}).map(function(k){return +k+1;});
+      var peak=mo[0]; var off=(peak>=4&&peak<=10)?3:2;
+      rows.push({name:tr.name,h:tr.h,gain:imp.gain,hcrit:imp.hcrit,dist:bd,tab:best+1,off:off,
+                 dir:compass(br),mo:mo,h0:hh[0],h1:hh[hh.length-1],tabs:tabs});
+    });
+    rows.sort(function(a,b){return b.gain-a.gain;});
+    if(!rows.length){ box.innerHTML='<h2>Що зрізати</h2><div class="hint">Жодне дерево зі списку на столи не падає — різати нема чого.</div>'; return; }
+    var html='<h2>Що зрізати</h2><table><tr><th>Дерево</th><th class="n">+кВт·год</th><th class="n">+грн/рік</th><th class="n">зрізати до</th></tr>';
+    rows.forEach(function(r){
+      var verdict = r.gain>300?"var(--bad)":(r.gain>100?"var(--sun)":"var(--dim)");
+      html+='<tr><td><b style="color:'+verdict+'">'+r.name+'</b><div class="hint" style="margin:2px 0 0">'+
+        Math.round(r.dist)+' м на '+r.dir+' від столу '+r.tab+' · б\'є по '+(r.tabs.length>1?"столах ":"столу ")+r.tabs.join(", ")+
+        '<br>'+MONTHS[r.mo[0]]+'–'+MONTHS[r.mo[r.mo.length-1]]+', '+
+        (r.h0+r.off)+':00–'+(r.h1+1+r.off)+':00</div></td>'+
+        '<td class="n">'+Math.round(r.gain)+'</td><td class="n">'+Math.round(r.gain*4.32).toLocaleString("uk-UA")+'</td>'+
+        '<td class="n">'+(r.hcrit? r.hcrit.toFixed(1)+" м" : "—")+'</td></tr>';
+    });
+    html+='</table><div class="hint"><b style="color:var(--bad)">Червоні</b> — різати обов\'язково (>300 кВт·год/рік). '+
+      '<b style="color:var(--sun)">Жовті</b> — варто. Колонка «зрізати до» — висота, на якій дерево перестає діставати до панелей: '+
+      'часто достатньо зняти верхівку, а не валити стовбур.</div>';
+    box.innerHTML=html;
+  },30);
+}
+function stakeout(){
+  var html='<table><tr><th>Стіл</th><th class="n">азимут</th><th>центр переднього краю</th></tr>';
+  state.tables.forEach(function(t,i){
+    var ll=toLL(t.x,t.y);
+    html+='<tr><td>'+(i+1)+'</td><td class="n">'+Math.round(t.az)+'°</td><td class="mono">'+
+      ll[0].toFixed(6)+', '+ll[1].toFixed(6)+'</td></tr>';
+  });
+  html+='</table><div class="hint">Відстань між столами (центр→центр): ';
+  var d=[];
+  for(var i=0;i<state.tables.length;i++) for(var j=i+1;j<state.tables.length;j++)
+    d.push((i+1)+"–"+(j+1)+": "+Math.hypot(state.tables[i].x-state.tables[j].x,state.tables[i].y-state.tables[j].y).toFixed(1)+" м");
+  html+=d.join(", ")+'</div>';
+  var ci2=+document.getElementById("corr").value;
+  if(ci2>=0){
+    var e2=edgeInfo(state.plot,ci2), free=1e9;
+    state.tables.forEach(function(t){ free=Math.min(free, distIntoPlot(t,e2)); });
+    html+='<div class="hint">Вільний проїзд уздовж межі ('+e2.name.split(',')[0]+'): <b>'+free.toFixed(1)+' м</b></div>';
+  }
+  html+=routeReport();
+  html+='<div class="row" style="margin-top:8px"><button id="piles">Координати паль</button></div><div id="pilebox"></div>';
+  document.getElementById("stake").innerHTML=html;
+  document.getElementById("piles").onclick=function(){
+    var h='<table><tr><th>Паля</th><th class="n">широта</th><th class="n">довгота</th></tr>';
+    state.tables.forEach(function(t,i){
+      pileLL(t).forEach(function(p){
+        h+='<tr><td>'+(i+1)+" "+p.n+'</td><td class="n mono">'+p.ll[0].toFixed(6)+
+           '</td><td class="n mono">'+p.ll[1].toFixed(6)+'</td></tr>';
+      });
+    });
+    document.getElementById("pilebox").innerHTML=h+'</table>';
+  };
+}
+document.getElementById("calc").onclick=function(){
+  this.textContent="Рахую…";
+  var self=this;
+  setTimeout(function(){
+    var attr={}, loss={}; var r=simulate(state.tables,state.trees,attr,loss); r.attr=attr;
+    report(r); drawLossMap(loss);
+    cutReport(loss, r.per.reduce(function(a,b){return a+b;},0));
+    self.textContent="Порахувати з тінями"; },30);
+};
+document.getElementById("planv4").onclick=function(){
+  state.tables=JSON.parse(JSON.stringify(PLAN_V4.tables));
+  state.plot=DEF_PLOT.map(function(p){return toXY(p[0],p[1]);}); draw(); shadows(); drawCorridor();
+  map.fitBounds(LLs(PLAN_V4.rect),{padding:[60,60],maxZoom:20});
+};
+document.getElementById("planopt").onclick=function(){
+  state.tables=JSON.parse(JSON.stringify(PLAN_OPT));
+  state.plot=DEF_PLOT.map(function(p){return toXY(p[0],p[1]);}); draw(); shadows(); drawCorridor();
+  map.fitBounds(LLs(PLAN_V4.rect),{padding:[60,60],maxZoom:20});
+};
+document.getElementById("hmap").onclick=function(){
+  var self=this; self.textContent="Рахую карту…";
+  setTimeout(function(){ heightMap(); self.textContent="Карта допустимої висоти"; },30);
+};
+document.getElementById("auto").onclick=function(){
+  var self=this; self.textContent="Підбираю… до 10 с";
+  setTimeout(function(){ autoplace(function(){ self.textContent="Підібрати розкладку сам"; }); },30);
+};
+function pairLoss(a,b){
+  if(Math.hypot(a.x-b.x,a.y-b.y)>30) return 0;
+  var alone=simulate([a],[]).per[0]+simulate([b],[]).per[0];
+  var pair=simulate([a,b],[]).per;
+  return alone-(pair[0]+pair[1]);
+}
+function bonus(t,poly){
+  var b=1.5*Math.min(southClear(t,poly),25) - 0.25*Math.hypot(t.x,t.y);
+  var ci=+document.getElementById("corr").value;
+  if(ci>=0){ b += 2*distIntoPlot(t,edgeInfo(state.plot,ci)); }   /* далі від проїзду = ширший проїзд */
+  return b;
+}
+function autoplace(done){
+  var margin=+document.getElementById("margin").value; if(!(margin>=0)) margin=1.5;
+  var gap=+document.getElementById("gap").value; if(!(gap>=0)) gap=3;
+  var inner=shrink(state.plot,margin);
+  var azs=document.getElementById("rot").checked?[165,172,180,188,195]:[180];
+  var xs=inner.map(function(p){return p[0];}), ys=inner.map(function(p){return p[1];});
+  var x0=Math.floor(Math.min.apply(null,xs)), x1=Math.ceil(Math.max.apply(null,xs));
+  var y0=Math.floor(Math.min.apply(null,ys)), y1=Math.ceil(Math.max.apply(null,ys));
+  var ci=+document.getElementById("corr").value, cw=+document.getElementById("corrw").value||0;
+  var edge=(ci>=0)?edgeInfo(state.plot,ci):null;
+  var cand=[], x,y,k,i,j2,k2;
+  for(x=x0;x<=x1;x++) for(y=y0;y<=y1;y++) for(k=0;k<azs.length;k++){
+    var t={x:x,y:y,az:azs[k]};
+    if(!fits(t,inner)) continue;
+    if(edge && distIntoPlot(t,edge)<cw) continue;      /* не лізти в проїзд */
+    cand.push(t);
+  }
+  if(cand.length<3){ alert("Столи не вміщаються: зменш відступ від межі, ширину проїзду або перевір контур."); if(done)done(); return; }
+  cand.forEach(function(t){ t.e=simulate([t],state.trees).per[0]; t.b=bonus(t,inner); t.score=t.e+t.b; });
+  cand.sort(function(a,b){return b.score-a.score;});
+  var pool=[];
+  for(i=0;i<cand.length && pool.length<34;i++){
+    var ok=true;
+    for(j2=0;j2<pool.length;j2++) if(Math.hypot(cand[i].x-pool[j2].x,cand[i].y-pool[j2].y)<2.5){ok=false;break;}
+    if(ok) pool.push(cand[i]);
+  }
+  var PL={};
+  for(i=0;i<pool.length;i++) for(j2=i+1;j2<pool.length;j2++){
+    PL[i+"_"+j2] = (polyDist(tableFoot(pool[i]),tableFoot(pool[j2]))<gap) ? 1e9 : pairLoss(pool[i],pool[j2]);
+  }
+  var combos=[];
+  for(i=0;i<pool.length;i++) for(j2=i+1;j2<pool.length;j2++) for(k2=j2+1;k2<pool.length;k2++){
+    var pen=PL[i+"_"+j2]+PL[i+"_"+k2]+PL[j2+"_"+k2];
+    if(pen>1e8) continue;
+    combos.push({i:i,j:j2,k:k2, est:pool[i].score+pool[j2].score+pool[k2].score-pen});
+  }
+  if(!combos.length){ alert("Три столи з таким проміжком не вміщаються — зменш «проміжок між столами»."); if(done)done(); return; }
+  combos.sort(function(a,b){return b.est-a.est;});
+  var best=null;
+  for(i=0;i<Math.min(combos.length,25);i++){
+    var c=combos[i], trio=[pool[c.i],pool[c.j],pool[c.k]].map(function(t){return {x:t.x,y:t.y,az:t.az};});
+    var v=simulate(trio,state.trees).per.reduce(function(a,b){return a+b;},0)
+          + trio.reduce(function(a,t){return a+bonus(t,inner);},0);
+    if(!best||v>best.v) best={v:v,trio:trio};
+  }
+  var chosen=best.trio;
+  var steps=[[0.5,0],[-0.5,0],[0,0.5],[0,-0.5],[0.5,0.5],[-0.5,-0.5],[0.5,-0.5],[-0.5,0.5]];
+  for(var pass=0;pass<4;pass++){
+    var moved=false;
+    for(i=0;i<3;i++){
+      var cur=simulate(chosen,state.trees).per.reduce(function(a,b){return a+b;},0)
+              +chosen.reduce(function(a,t){return a+bonus(t,inner);},0);
+      for(var s2=0;s2<steps.length;s2++){
+        var t2={x:chosen[i].x+steps[s2][0], y:chosen[i].y+steps[s2][1], az:chosen[i].az};
+        if(!fits(t2,inner)) continue;
+        if(edge && distIntoPlot(t2,edge)<cw) continue;
+        var clash=false;
+        for(var j3=0;j3<3;j3++) if(j3!==i && polyDist(tableFoot(t2),tableFoot(chosen[j3]))<gap) {clash=true;break;}
+        if(clash) continue;
+        var trial=chosen.slice(); trial[i]=t2;
+        var v2=simulate(trial,state.trees).per.reduce(function(a,b){return a+b;},0)
+               +trial.reduce(function(a,t){return a+bonus(t,inner);},0);
+        if(v2>cur+1){ chosen=trial; cur=v2; moved=true; }
+      }
+    }
+    if(!moved) break;
+  }
+  state.tables=chosen; draw(); shadows();
+  var attr={}, loss={}; var r=simulate(state.tables,state.trees,attr,loss); r.attr=attr;
+  report(r); drawLossMap(loss); cutReport(loss, r.per.reduce(function(a,b){return a+b;},0));
+  if(done) done();
+}
+/* ---------------- карта допустимої висоти перешкод ---------------- */
+var HM=null, hmLayer=null;
+var HM_CELL=1.5, HM_ZBIN=0.5, HM_ZMAX=22, HM_REACH=70, HM_TOL=40; /* кВт·год/рік */
+function heightMap(){
+  var tabs=state.tables, S=tabs.map(tableSamples);
+  var xs=[],ys=[];
+  tabs.forEach(function(t){ tableFoot(t).forEach(function(p){ xs.push(p[0]); ys.push(p[1]); }); });
+  var x0=Math.min.apply(null,xs)-HM_REACH*0.55, x1=Math.max.apply(null,xs)+HM_REACH*0.55;
+  var y0=Math.min.apply(null,ys)-HM_REACH, y1=Math.max.apply(null,ys)+22;
+  var nx=Math.ceil((x1-x0)/HM_CELL), ny=Math.ceil((y1-y0)/HM_CELL), nz=Math.ceil(HM_ZMAX/HM_ZBIN);
+  var hist=new Float32Array(nx*ny*nz);
+  for(var w=0;w<WX.length;w++){
+    var b=WX[w], mo=b[0], hh=b[1], days=b[2], dni=b[3], dhi=b[4], ghi=b[5], T=b[6], WS=b[7];
+    var doy=Math.round((mo-1)*30.4+15), sp=sunpos(doy,hh+0.5);
+    if(sp.el<=3) continue;
+    var ux=Math.sin(sp.az*Math.PI/180), uy=Math.cos(sp.az*Math.PI/180), tg=Math.tan(sp.el*Math.PI/180);
+    for(var i=0;i<tabs.length;i++){
+      var ir=poa(dni,dhi,ghi,sp.el,sp.az,tabs[i].az);
+      if(ir.beam<=0) continue;
+      var full=ir.beam+ir.dif+ir.grd, Tm=T+full/(25+6.84*WS), der=1+GAMMA*(Tm-25);
+      var eSample=PDC*(ir.beam/1000)*der*days*KCAL/1000/S[i].length;
+      if(eSample<=0.0005) continue;
+      var pts=S[i];
+      for(var q=0;q<pts.length;q++){
+        var pxx=pts[q][0], pyy=pts[q][1], pzz=pts[q][2];
+        for(var d=HM_CELL;d<HM_REACH;d+=HM_CELL){
+          var gx=pxx+ux*d, gy=pyy+uy*d, gz=pzz+d*tg;
+          if(gz>HM_ZMAX) break;
+          var cx=Math.floor((gx-x0)/HM_CELL), cy=Math.floor((gy-y0)/HM_CELL);
+          if(cx<0||cy<0||cx>=nx||cy>=ny) continue;
+          var cz=Math.floor(gz/HM_ZBIN); if(cz<0) cz=0;
+          hist[(cy*nx+cx)*nz+cz]+=eSample;
+        }
+      }
+    }
+  }
+  var allow=new Float32Array(nx*ny);
+  for(var c=0;c<nx*ny;c++){
+    var cum=0, h=HM_ZMAX;
+    for(var z=0;z<nz;z++){
+      cum+=hist[c*nz+z];
+      if(cum>HM_TOL){ h=z*HM_ZBIN; break; }
+    }
+    allow[c]=h;
+  }
+  HM={x0:x0,y0:y0,nx:nx,ny:ny,allow:allow};
+  drawHeightMap();
+}
+function hmColor(h){
+  if(h>=12) return null;
+  if(h<2)  return [224,90,79,.72];
+  if(h<4)  return [232,140,60,.66];
+  if(h<7)  return [245,197,24,.55];
+  return [120,190,110,.4];
+}
+function drawHeightMap(){
+  if(hmLayer){ map.removeLayer(hmLayer); hmLayer=null; }
+  if(!HM) return;
+  var sc=4, cv=document.createElement("canvas");
+  cv.width=HM.nx*sc; cv.height=HM.ny*sc;
+  var g=cv.getContext("2d");
+  for(var cy=0;cy<HM.ny;cy++) for(var cx=0;cx<HM.nx;cx++){
+    var col=hmColor(HM.allow[cy*HM.nx+cx]); if(!col) continue;
+    g.fillStyle="rgba("+col[0]+","+col[1]+","+col[2]+","+col[3]+")";
+    g.fillRect(cx*sc,(HM.ny-1-cy)*sc,sc,sc);       /* y вгору */
+  }
+  var sw=toLL(HM.x0,HM.y0), ne=toLL(HM.x0+HM.nx*HM_CELL, HM.y0+HM.ny*HM_CELL);
+  hmLayer=L.imageOverlay(cv.toDataURL(), [[sw[0],sw[1]],[ne[0],ne[1]]], {opacity:1, interactive:false, pane:"hm"});
+  hmLayer.addTo(map);
+  var legend='<h2>Карта допустимої висоти</h2>'+
+    '<table><tr><td><span style="color:#e05a4f">■</span> нижче 2 м</td><td class="n">тут ніщо не має рости</td></tr>'+
+    '<tr><td><span style="color:#e88c3c">■</span> 2–4 м</td><td class="n">кущ, не дерево</td></tr>'+
+    '<tr><td><span style="color:#f5c518">■</span> 4–7 м</td><td class="n">низьке дерево</td></tr>'+
+    '<tr><td><span style="color:#78be6e">■</span> 7–12 м</td><td class="n">терпимо</td></tr>'+
+    '<tr><td>без заливки</td><td class="n">не заважає взагалі</td></tr></table>'+
+    '<div class="hint">Колір = гранична висота предмета в цій точці, за якої втрата ще менша за '+HM_TOL+
+    ' кВт·год/рік. Клацни по карті в режимі «Дивитись» — скаже цифру в точці.</div>';
+  document.getElementById("hmbox").innerHTML=legend;
+}
+function hmAt(x,y){
+  if(!HM) return null;
+  var cx=Math.floor((x-HM.x0)/HM_CELL), cy=Math.floor((y-HM.y0)/HM_CELL);
+  if(cx<0||cy<0||cx>=HM.nx||cy>=HM.ny) return null;
+  return HM.allow[cy*HM.nx+cx];
+}
+
+
+/* ---------------- звідки саме приходить тінь ---------------- */
+var lossLayer=null;
+function drawLossMap(loss){
+  if(lossLayer){ map.removeLayer(lossLayer); lossLayer=null; }
+  var keys=Object.keys(loss); if(!keys.length) return;
+  var max=0; keys.forEach(function(k){ if(loss[k]>max) max=loss[k]; });
+  var sc=3, cv=document.createElement("canvas");
+  cv.width=CAN.nx*sc; cv.height=CAN.ny*sc;
+  var g=cv.getContext("2d");
+  keys.forEach(function(k){
+    var v=loss[k]/max; if(v<0.04) return;
+    var i=k%CAN.nx, j=Math.floor(k/CAN.nx);
+    g.fillStyle="rgba(230,60,50,"+(0.25+0.6*v)+")";
+    g.fillRect(i*sc,(CAN.ny-1-j)*sc,sc,sc);
+  });
+  var sw=toLL(CAN.X0,CAN.Y0), ne=toLL(CAN.X0+CAN.nx, CAN.Y0+CAN.ny);
+  lossLayer=L.imageOverlay(cv.toDataURL(),[[sw[0],sw[1]],[ne[0],ne[1]]],{pane:"hm",opacity:1,interactive:false});
+  lossLayer.addTo(map);
+}
+function clusterLoss(loss){
+  /* збираємо сусідні клітинки з втратами в «дерева» */
+  var seen={}, out=[];
+  Object.keys(loss).forEach(function(k0){
+    k0=+k0; if(seen[k0]||loss[k0]<1) return;
+    var stack=[k0], cells=[], sum=0;
+    seen[k0]=1;
+    while(stack.length){
+      var k=stack.pop(); cells.push(k); sum+=loss[k];
+      var i=k%CAN.nx, j=Math.floor(k/CAN.nx);
+      for(var dj=-2;dj<=2;dj++) for(var di=-2;di<=2;di++){
+        var ni=i+di, nj=j+dj; if(ni<0||nj<0||ni>=CAN.nx||nj>=CAN.ny) continue;
+        var nk=nj*CAN.nx+ni;
+        if(!seen[nk] && loss[nk]>=1){ seen[nk]=1; stack.push(nk); }
+      }
+    }
+    if(sum<25) return;
+    var sx=0, sy=0, hmax=0;
+    cells.forEach(function(k){
+      var i=k%CAN.nx, j=Math.floor(k/CAN.nx);
+      sx+=CAN.X0+i+0.5; sy+=CAN.Y0+j+0.5;
+      if(CAN.h[k]>hmax) hmax=CAN.h[k];
+    });
+    out.push({loss:sum, n:cells.length, cells:cells, x:sx/cells.length, y:sy/cells.length, h:hmax});
+  });
+  out.sort(function(a,b){return b.loss-a.loss;});
+  return out.slice(0,8);
+}
+function cutReport(loss,base){
+  var box=document.getElementById("cutbox"); if(!box) return;
+  box.innerHTML='<h2>Що зрізати</h2><div class="hint">Перебираю сектори навколо столів…</div>';
+  setTimeout(function(){
+    var cx=0, cy=0;
+    state.tables.forEach(function(t){ cx+=t.x/state.tables.length; cy+=t.y/state.tables.length; });
+    var SECT=["північ","північний схід","схід","південний схід","південь","південний захід","захід","північний захід"];
+    var rings=[[0,20],[20,40],[40,70]];
+    var zones=[];
+    for(var si=0;si<8;si++) for(var ri=0;ri<rings.length;ri++){
+      var cells=[], hmax=0;
+      for(var j=0;j<CAN.ny;j++) for(var i=0;i<CAN.nx;i++){
+        var k=j*CAN.nx+i, h=CAN.h[k]; if(h<3) continue;
+        var x=CAN.X0+i+0.5, y=CAN.Y0+j+0.5;
+        var d=Math.hypot(x-cx,y-cy); if(d<rings[ri][0]||d>=rings[ri][1]) continue;
+        var a=(Math.atan2(x-cx,y-cy)*180/Math.PI+360)%360;
+        if(Math.round(a/45)%8!==si) continue;
+        cells.push(k); if(h>hmax) hmax=h;
+      }
+      if(cells.length<6) continue;
+      zones.push({si:si,ri:ri,cells:cells,h:hmax,name:SECT[si],d0:rings[ri][0],d1:rings[ri][1]});
+    }
+    var rows=[];
+    zones.forEach(function(z){
+      var old=z.cells.map(function(k){ return CAN.h[k]; });
+      z.cells.forEach(function(k){ if(CAN.h[k]>3) CAN.h[k]=3; });
+      var v=simulate(state.tables,state.trees).per.reduce(function(a,b){return a+b;},0);
+      z.cells.forEach(function(k,ii){ CAN.h[k]=old[ii]; });
+      var gain=v-base;
+      if(gain>20) rows.push({z:z,gain:gain});
+    });
+    rows.sort(function(a,b){return b.gain-a.gain;});
+    var html='<h2>Що зрізати</h2>'+(rows.length?'<table><tr><th>Сектор від столів</th><th class="n">зараз</th><th class="n">+кВт·год</th><th class="n">+грн/рік</th></tr>':'<div class="hint">Жоден окремий сектор не дає навіть 20 кВт·год на рік — тінь розмазана по всьому обрію, різати нема сенсу.</div>');
+    rows.slice(0,6).forEach(function(r){
+      html+='<tr><td><b style="color:'+(r.gain>300?"var(--bad)":(r.gain>100?"var(--sun)":"var(--dim)"))+'">'+
+        r.z.name+'</b><div class="hint" style="margin:2px 0 0">'+r.z.d0+'–'+r.z.d1+' м від столів</div></td>'+
+        '<td class="n">до '+r.z.h+' м</td><td class="n">'+Math.round(r.gain)+'</td><td class="n">'+
+        Math.round(r.gain*4.32).toLocaleString("uk-UA")+'</td></tr>';
+    });
+    /* верхня межа: зрізати геть усе в радіусі 40 м */
+    var allCells=[], allOld=[];
+    for(var jj=0;jj<CAN.ny;jj++) for(var ii=0;ii<CAN.nx;ii++){
+      var kk=jj*CAN.nx+ii; if(CAN.h[kk]<3) continue;
+      if(Math.hypot(CAN.X0+ii+0.5-cx, CAN.Y0+jj+0.5-cy)<80){ allCells.push(kk); allOld.push(CAN.h[kk]); CAN.h[kk]=3; }
+    }
+    var vAll=simulate(state.tables,state.trees).per.reduce(function(a,b){return a+b;},0);
+    allCells.forEach(function(k,ii){ CAN.h[k]=allOld[ii]; });
+    box.innerHTML=html+(rows.length?'</table>':'')+'<div class="hint">Зрізати геть усе в радіусі 80 м до 3 м дало б '+
+      Math.round(vAll-base)+' кВт·год/рік ('+Math.round((vAll-base)*4.32).toLocaleString("uk-UA")+
+      ' грн). Це стеля — більше з дерев не вичавити. Рахується і пряме сонце, і розсіяне світло неба, яке крони теж забирають.</div>';
+  },30);
+}
+
+/* ---------------- погодинний розклад одного дня ---------------- */
+function dayProfile(doy){
+  var mo=new Date(2026,0,doy).getMonth()+1;
+  var wx={};                                   /* середня погода цього місяця по годинах */
+  WX.forEach(function(b){ if(b[0]===mo) wx[b[1]]=b; });
+  var off=(doy>87&&doy<303)?3:2;
+  var rows=[], S=state.tables.map(tableSamples);
+  var svf=state.tables.map(function(t){ return skyView(t,state.trees,state.tables); });
+  for(var hLoc=3; hLoc<=22; hLoc+=0.5){
+    var utc=hLoc-off, b=wx[Math.floor(utc)];
+    if(!b) continue;
+    var sp=sunpos(doy,utc); if(sp.el<=0.5) continue;
+    var sun=sunVec(sp.el,sp.az);
+    var per=[], lit=[];
+    for(var i=0;i<state.tables.length;i++){
+      var ir=poa(b[3],b[4],b[5],sp.el,sp.az,state.tables[i].az);
+      var full=ir.beam+ir.difIso+ir.difCs+ir.grd;
+      var Tm=b[6]+full/(25+6.84*b[7]), der=1+GAMMA*(Tm-25);
+      var n=0, pts=S[i];
+      for(var q=0;q<pts.length;q++){
+        var sh=false, j;
+        for(j=0;j<state.tables.length && !sh;j++) if(j!==i && hitsTable(pts[q],sun,state.tables[j])) sh=true;
+        if(HOR.mode==="off"){
+          for(j=0;j<state.trees.length && !sh;j++) if(hitsTree(pts[q],sun,state.trees[j])) sh=true;
+          for(j=0;j<state.buildings.length && !sh;j++) if(hitsBuilding(pts[q],sun,state.buildings[j])) sh=true;
+          if(!sh && hitsCanopy(pts[q],sun,null,0)) sh=true;
+        } else if(HOR.mode==="one"){ if(!sh && sp.el<horizonAt(sp.az)) sh=true; }
+        else if(!sh && sp.el<horP(pts[q],sp.az)) sh=true;
+        if(!sh) n+=(HOR.mode==="pts")?extraW(pts[q],sun,mo):1;
+      }
+      var frac=n/pts.length;
+      var P=PDC*((ir.beam*frac+ir.difIso*svf[i]+ir.difCs*frac+ir.grd*(0.25+0.75*svf[i]))/1000)*der*KCAL;
+      per.push(P/1000); lit.push(Math.round(100*frac));
+    }
+    rows.push({h:hLoc, el:sp.el, az:sp.az, per:per, lit:lit});
+  }
+  return rows;
+}
+function showDay(){
+  var v=document.getElementById("dday").value;
+  var dt=new Date(v+"T12:00:00");
+  var doy=Math.floor((dt-new Date(dt.getFullYear(),0,0))/86400000);
+  var rows=dayProfile(doy);
+  if(!rows.length){ document.getElementById("daybox").innerHTML='<div class="hint">Сонця немає.</div>'; return; }
+  var h='<table><tr><th>год</th><th class="n">сонце</th>';
+  state.tables.forEach(function(t,i){ h+='<th class="n">'+(i+1)+', кВт</th>'; });
+  h+='<th class="n">разом</th><th class="n">світло</th></tr>';
+  var tot=[0,0,0], all=0;
+  rows.forEach(function(r){
+    if(Math.abs(r.h%1)>0.01) return;                 /* показуємо цілі години */
+    var sum=r.per.reduce(function(a,b){return a+b;},0);
+    h+='<tr><td class="mono">'+(r.h<10?"0":"")+r.h+':00</td><td class="n mono">'+r.el.toFixed(0)+'°</td>';
+    r.per.forEach(function(p){ h+='<td class="n">'+p.toFixed(1)+'</td>'; });
+    h+='<td class="n"><b>'+sum.toFixed(1)+'</b></td><td class="n" style="color:'+
+       (Math.min.apply(null,r.lit)<100?"var(--bad)":"var(--dim)")+'">'+r.lit.join("/")+'</td></tr>';
+  });
+  rows.forEach(function(r){
+    r.per.forEach(function(p,i){ tot[i]+=p*0.5; });   /* кроки по 30 хв */
+    all+=r.per.reduce(function(a,b){return a+b;},0)*0.5;
+  });
+  h+='<tr><td colspan="2"><b>за добу</b></td>';
+  tot.forEach(function(t){ h+='<td class="n"><b>'+t.toFixed(1)+'</b></td>'; });
+  h+='<td class="n"><b>'+all.toFixed(1)+'</b></td><td></td></tr></table>'+
+     '<div class="hint">кВт — миттєва потужність на початок години; «за добу» — кВт·год, крок розрахунку 30 хв. '+
+     '«світло» — скільки відсотків площі кожного столу під прямим сонцем. Погода — типова для цього місяця (TMY), не прогноз.</div>';
+  document.getElementById("daybox").innerHTML=h;
+}
+
+/* ---------------- керування часом ---------------- */
+["doy","hour"].forEach(function(id){ document.getElementById(id).oninput=shadows; });
+document.querySelectorAll("[data-doy]").forEach(function(b){
+  b.onclick=function(){ document.getElementById("doy").value=this.dataset.doy; shadows(); };
+});
+var timer=null;
+document.getElementById("play").onclick=function(){
+  var self=this;
+  if(timer){ clearInterval(timer); timer=null; self.textContent="▶ Прокрутити день"; return; }
+  self.textContent="■ Стоп";
+  var h=document.getElementById("hour");
+  timer=setInterval(function(){
+    var v=+h.value+0.25; if(v>21){ v=3; }
+    h.value=v; shadows();
+  },120);
+};
+
+/* ---------------- збереження ---------------- */
+var KEY="solar.layout.v1";
+document.getElementById("save").onclick=function(){
+  try{ localStorage.setItem(KEY,JSON.stringify(state)); this.textContent="Збережено"; var s=this;
+       setTimeout(function(){s.textContent="Зберегти";},1200); }catch(e){}
+};
+document.getElementById("load").onclick=function(){
+  try{ var s=JSON.parse(localStorage.getItem(KEY)||"null");
+       if(s&&s.plot){ state.plot=s.plot; state.trees=s.trees||[]; state.tables=s.tables; state.buildings=s.buildings||state.buildings; draw(); shadows(); drawCorridor(); } }catch(e){}
+};
+document.getElementById("reset").onclick=function(){
+  state.plot=DEF_PLOT.map(function(p){return toXY(p[0],p[1]);});
+  state.trees=[]; state.tables=JSON.parse(JSON.stringify(DEF_TABLES));
+  state.buildings=JSON.parse(JSON.stringify(DEF_BUILDINGS));
+  document.getElementById("sel").innerHTML=""; draw(); shadows();
+};
+try{ var s0=JSON.parse(localStorage.getItem(KEY)||"null");
+     if(s0&&s0.plot){ state.plot=s0.plot; state.trees=s0.trees||[]; state.tables=s0.tables; if(s0.buildings) state.buildings=s0.buildings; } }catch(e){}
+try{ if(!localStorage.getItem("solar.planv4.applied")){
+       state.tables=JSON.parse(JSON.stringify(PLAN_V4.tables));
+       state.plot=DEF_PLOT.map(function(p){return toXY(p[0],p[1]);});
+       localStorage.setItem("solar.planv4.applied","1");
+       try{ localStorage.setItem(KEY,JSON.stringify(state)); }catch(e){}
+     } }catch(e){}
+fillCorridorSelect(); phUI(); draw(); drawCanopy(); shadows(); drawCorridor();
+window.addEventListener("resize",function(){ sunChart(); });
+document.getElementById("gndinfo").innerHTML="Рельєф: растр Copernicus DSM, крок 4 м, радіус 400 м (ухил ділянки ~"+slopePct().toFixed(0)+
+  "%, падає на "+compassAdj(slopeAz())+"). Далі 110 м тінь рахується по поверхні DSM разом із лісом.";
+setTimeout(function(){ map.invalidateSize(); map.fitBounds(LLs(state.plot),{padding:[30,30],maxZoom:19}); },200);
+</script>
+</body>
+</html>
