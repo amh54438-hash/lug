@@ -175,9 +175,11 @@ var DEF_TREES=[
 /* План v4 користувача (plan_v4.svg, 03.10.2026): прямокутник АБВГ 30×10 м, А ≈ 48,57894; 28,11142,
    вісь А→Г на азимут 235,1°, А→Б на 145,1°; вісь крайньої задньої ніжки — на лінії А–Г. */
 var PLAN_V4={"rect": [[10.226, 42.143], [15.95, 33.944], [-8.648, 16.77], [-14.372, 24.969]], "names": ["А (0;0)", "Б (0;10)", "В (30;10)", "Г (30;0)"], "tables": [{"x": 8.12, "y": 34.43, "az": 180}, {"x": -0.12, "y": 28.68, "az": 180}, {"x": -8.35, "y": 22.93, "az": 180}], "piles": [[4.11, 35.28], [6.81, 35.27], [6.82, 37.87], [9.51, 35.27], [9.52, 37.87], [12.21, 35.27], [12.21, 37.86], [-4.12, 29.53], [-1.42, 29.53], [-1.42, 32.12], [1.28, 29.52], [1.28, 32.12], [3.98, 29.52], [3.98, 32.12], [-12.35, 23.78], [-9.65, 23.78], [-9.65, 26.38], [-6.95, 23.77], [-6.95, 26.38], [-4.25, 23.77], [-4.25, 26.37], [4.12, 37.88], [-4.12, 32.13], [-12.35, 26.38]]};
-/* Оптимальна розстановка за обрієм з 8 точок фото (03.10.2026): у координатах плану X=4,5 / 17 / 27,5 м уздовж А→Г,
-   перші два — задні ніжки на А–Г (Y=5,12), третій на 3 м углиб (Y=8,12). 30 922 / 29 048 (стрінг) проти v4 30 679 / 27 685. */
-var PLAN_OPT=[{x:9.47,y:35.37,az:180},{x:-0.78,y:28.21,az:180},{x:-7.67,y:19.74,az:180}];
+/* Оптимальна розстановка (03.10.2026, обрій з 8 точок фото, реалістична модель стрінга LR7 half-cut):
+   у координатах плану X;Y = 8,5;12 · 16;5 · 29;6 (X уздовж А→Г, Y углиб від А–Г, Y=5,12 — задні ніжки на А–Г).
+   Між сусідніми столами з півдня на північ прохід 0,9 м (жоден не затуляє інший). Реалістично 30 242 кВт·год/рік
+   (байпас 30 866, жорсткий 29 521) проти v4 29 585 (30 679 / 27 685). */
+var PLAN_OPT=[{x:10.13,y:27.44,az:180},{x:-0.03,y:28.88,az:180},{x:-10.12,y:20.62,az:180}];
 var DEF_TABLES=JSON.parse(JSON.stringify(PLAN_V4.tables));   /* до 03.10: (-7;15.5), (3;25), (13.5;34) */  /* 28.09.2026 ФІНАЛ: притиснуто до річкової межі, проїзд 6,5 м */  /* 28.09.2026: крок 12 м після врахування рельєфу на 400 м; 4-й на (-13.3;8.9) */
 
 /* ---------------- геометрія столу (НСФЗ-М5К2х8-П30-4100) ---------------- */
@@ -311,8 +313,8 @@ function skyView(t,trees,tables){
   return tot>0 ? open/tot : 1;
 }
 function simulate(tables,trees,attr,lossRaster){
-  var per=[],unsh=[],strict=[],monthly=new Array(13).fill(0),worst={};
-  tables.forEach(function(){per.push(0);unsh.push(0);strict.push(0);});
+  var per=[],unsh=[],strict=[],real=[],monthly=new Array(13).fill(0),worst={};
+  tables.forEach(function(){per.push(0);unsh.push(0);strict.push(0);real.push(0);});
   var S=tables.map(tableSamples);
   var SVF=tables.map(function(t){ return skyView(t,trees,tables); });
   for(var w=0;w<WX.length;w++){
@@ -324,10 +326,10 @@ function simulate(tables,trees,attr,lossRaster){
       var ir=poa(dni,dhi,ghi,sp.el,sp.az,tables[i].az);
       var full=ir.beam+ir.difIso+ir.difCs+ir.grd; if(full<=0) continue;
       var Tm=T+full/(25+6.84*WS), der=1+GAMMA*(Tm-25);
-      var frac=1, fracMin=1;
+      var frac=1, fracMin=1, litS=null;
       if(ir.beam>0 && blockedByHorizon(sp.el,sp.az)){ frac=0; fracMin=0; }
       else if(ir.beam>0){
-        var lit=0, pts=S[i], panelLit=new Array(16).fill(0);
+        var lit=0, pts=S[i], panelLit=new Array(16).fill(0); litS=new Array(pts.length).fill(0);
         for(var q=0;q<pts.length;q++){
           var sh=false, j, who=-1;
           for(j=0;j<tables.length && !sh;j++) if(j!==i && hitsTable(pts[q],sun,tables[j])){ sh=true; who=-2; }
@@ -340,7 +342,7 @@ function simulate(tables,trees,attr,lossRaster){
               if(hitsCanopy(pts[q],sun,lossRaster,esh)){ sh=true; who=-3; }
             }
           }
-          if(!sh){ var wl=(HOR.mode==="pts")?extraW(pts[q],sun,mo):1; lit+=wl; panelLit[Math.floor(q/3)]+=wl; }
+          if(!sh){ var wl=(HOR.mode==="pts")?extraW(pts[q],sun,mo):1; lit+=wl; panelLit[Math.floor(q/3)]+=wl; litS[q]=wl; }
           else if(attr && who>=0){
             var a=attr[who]||(attr[who]={kwh:0,mo:{},hh:{},tab:{}});
             var dE=PDC*(ir.beam/1000)*(1/pts.length)*der*days*KCAL/1000;
@@ -357,11 +359,26 @@ function simulate(tables,trees,attr,lossRaster){
       var E=PDC*((ir.beam*frac+diffuse+ground)/1000)*der/1000*days*KCAL;
       var Es=PDC*((ir.beam*fracMin+ir.difIso*sv+ir.difCs*fracMin+ground)/1000)*der/1000*days*KCAL;
       var Ef=PDC*(full/1000)*der/1000*days*KCAL;
+      /* реалістичний стрінг для half-cut портретних панелей (LR7): у кожній панелі нижня й верхня половини паралельно,
+         3 байпас-діоди по довжині; тінь на нижній кромці «гасить» нижню половину всіх трьох секцій. Інвертор (MPPT)
+         обирає кращий струм: або всі панелі на струмі найслабшої, або слабкі секції в обхід через діоди. */
+      var Er=E;
+      if(litS && ir.beam>0){
+        var dif=diffuse+ground, tot=ir.beam+dif, caps=[];
+        for(var pp=0;pp<16;pp++){
+          var s0=litS[pp*3], s1=litS[pp*3+1], s2=litS[pp*3+2];
+          var hb=Math.min(s0,s1), ht=Math.min(s1,s2);
+          caps.push(tot>0 ? (ir.beam*(hb+ht)/2+dif)/tot : 1);
+        }
+        var best=0; caps.forEach(function(c){ var n=0; caps.forEach(function(c2){ if(c2>=c-1e-9) n++; }); var p=c*n/16 - (16-n)*0.0015; if(p>best) best=p; });
+        Er=PDC*(tot/1000)*best*der/1000*days*KCAL;
+      }
+      real[i]+=Er;
       per[i]+=E; strict[i]+=Es; unsh[i]+=Ef; monthly[mo]+=E;
       if(Ef-E>1){ var key=mo+"|"+hh; worst[key]=(worst[key]||0)+(Ef-E); }
     }
   }
-  return {per:per,unsh:unsh,strict:strict,monthly:monthly,worst:worst};
+  return {per:per,unsh:unsh,strict:strict,real:real,monthly:monthly,worst:worst};
 }
 
 
@@ -1272,7 +1289,9 @@ function report(res){
     '<div class="hint">без жодної тіні було б '+Math.round(full).toLocaleString("uk-UA")+
     ' · втрата на тінях <b style="color:'+(loss>3?"var(--bad)":"var(--ok)")+'">'+loss.toFixed(1)+'%</b></div>'+
     (st?'<div class="hint">найгірший розклад для стрінга (без байпасу, MPPT сідає на затінену панель): <b>'+
-      Math.round(st).toLocaleString("uk-UA")+'</b> кВт·год — реальність між цими двома числами, ближче до верхнього</div>':'')+
+      Math.round(st).toLocaleString("uk-UA")+'</b> кВт·год</div>':'')+
+    (res.real?'<div class="hint">реалістично для LR7 (half-cut, 3 діоди, половини паралельно, інвертор сам обирає режим): <b style="color:var(--ink)">'+
+      Math.round(res.real.reduce(function(a,b){return a+b;},0)).toLocaleString("uk-UA")+'</b> кВт·год/рік — на цю цифру й орієнтуйся</div>':'')+
     '<table><tr><th>Стіл</th><th class="n">кВт·год/рік</th><th class="n">тінь</th><th class="n">видно неба</th></tr>';
   res.per.forEach(function(v,i){
     html+='<tr><td>'+(i+1)+'</td><td class="n">'+Math.round(v).toLocaleString("uk-UA")+
