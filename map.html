@@ -1052,8 +1052,6 @@ function drawRoute(){
     L.polyline(LLs([s.a,s.b]),{color:"#ff8c42",weight:s.spur?3:4,opacity:.9,dashArray:"9 6"}).addTo(gRoute)
      .bindTooltip("траншея "+s.name+": "+s.len.toFixed(1)+" м, "+(2*s.strings)+" жили + катанка");
   });
-  L.polyline(LLs([g.spur.a,g.spur.b]),{color:"#9aa3ad",weight:2,dashArray:"4 5"}).addTo(gRoute).bindTooltip("перспектива: відгалуження 4-го стола "+g.spur.len.toFixed(1)+" м");
-  L.polygon(LLs(tableFoot(T4RES)),{color:"#9aa3ad",weight:1.5,fill:false,dashArray:"4 4",interactive:false}).addTo(gRoute);
   g.nodes.forEach(function(n,k){
     var boxAt=(k<g.nodes.length-1)?n.w:n.e;
     if(k<g.nodes.length-1) L.polyline(LLs([n.e,n.w]),{color:"#ff8c42",weight:2,opacity:.7}).addTo(gRoute)
@@ -1064,133 +1062,95 @@ function drawRoute(){
     L.marker(toLL(r.p[0],r.p[1]),{icon:L.divIcon({className:"",html:'<div style="width:0;height:0;border-left:8px solid transparent;border-right:8px solid transparent;border-bottom:14px solid #52c07a;filter:drop-shadow(0 0 1px #000)"></div>',iconSize:[16,14],iconAnchor:[8,7]})}).addTo(gRoute)
      .bindTooltip(r.name);
   });
-  var zk=[["З1",g.nodes[0].w],["З2",g.nodes[1]?g.nodes[1].w:null],["З3",g.last.e],["З4",g.z4],["З5 ввід",g.inp]];
+  var zk=g.nodes.map(function(n,k){ return ["колодязь "+(k+1),n.j]; }).concat([["ввід",g.inp]]);
   zk.forEach(function(z){ if(!z[1]) return; L.marker(toLL(z[1][0],z[1][1]),{icon:L.divIcon({className:"",html:'<div style="margin-left:12px;margin-top:-6px;padding:0 4px;background:#10131a;color:#ffb37a;font:600 10px/14px sans-serif;border:1px solid #ff8c42;border-radius:3px;white-space:nowrap">'+z[0]+'</div>',iconSize:[0,0]}),interactive:false}).addTo(gRoute); });
   L.marker(toLL(g.inp[0],g.inp[1]),{icon:L.divIcon({className:"",html:'<div style="width:18px;height:18px;border-radius:3px;background:#f5c518;color:#1a1405;font:700 10px/18px sans-serif;text-align:center;border:2px solid #10131a">⚡</div>',iconSize:[18,18],iconAnchor:[9,9]}),interactive:false}).addTo(gRoute);
 }
 
 function wiringSVG(g){
-  var ord=g.nodes.map(function(n){return n.i+1;});           /* порядок від дальнього: напр. [3,2,1] */
-  var W=740,H=470, X={}, y0=150;
-  var xs=[590,410,230]; ord.forEach(function(t,k){ X[t]=xs[k]; });
+  var ord=g.nodes.map(function(n){return n.i+1;});            /* від дальнього до вводу */
+  var W=740,H=430, y0=120, ty=250, xin=70, X={};
+  var xs=[610,430,250]; ord.forEach(function(t,k){ X[t]=xs[k]; });
   var o='<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;background:#0e1219;border:1px solid var(--line);border-radius:8px" xmlns="http://www.w3.org/2000/svg">';
   o+='<style>text{font:11px sans-serif;fill:#cbd3df}.t{font-size:12px;font-weight:600;fill:#e7ecf3}.d{font-size:10px;fill:#95a1b3}</style>';
-  function table(t,x,dash,yy){
-    var y0=yy||150;
-    var st=dash?'stroke="#8a8d92" stroke-dasharray="5 4" fill="none"':'stroke="#4aa3ff" fill="#1c3b66"';
-    o+='<rect x="'+(x-70)+'" y="'+(y0-50)+'" width="140" height="60" rx="3" '+st+'/>';
-    o+='<text class="t" x="'+(x-64)+'" y="'+(y0-34)+'">'+(dash?'4-й стіл (резерв)':'стіл '+t)+'</text>';
-    o+='<text class="d" x="'+(x-64)+'" y="'+(y0-20)+'">'+(dash?'потім, паралельно до стола '+ord[ord.length-1]:'16 ФЕМ = 1 стрінг → MPPT '+t)+'</text>';
-    if(dash) return;
-    /* палі: 2 ряди × 4 */
-    var px=[x-55,x-20,x+15,x+50];
-    [y0+22,y0+42].forEach(function(py,r){ px.forEach(function(qx){ o+='<circle cx="'+qx+'" cy="'+py+'" r="4" fill="#9aa3ad" stroke="#10131a"/>'; }); });
-    if(dash) return;
-    /* перемички: обидва ряди по прогону + поперечні */
-    o+='<polyline points="'+px.map(function(qx){return qx+','+(y0+22);}).join(' ')+'" fill="none" stroke="#52c07a" stroke-width="2"/>';
-    o+='<polyline points="'+px.map(function(qx){return qx+','+(y0+42);}).join(' ')+'" fill="none" stroke="#52c07a" stroke-width="2"/>';
-    o+='<line x1="'+px[0]+'" y1="'+(y0+22)+'" x2="'+px[0]+'" y2="'+(y0+42)+'" stroke="#52c07a" stroke-width="2"/><line x1="'+px[3]+'" y1="'+(y0+22)+'" x2="'+px[3]+'" y2="'+(y0+42)+'" stroke="#52c07a" stroke-width="2"/>';
-    o+='<line x1="'+x+'" y1="'+(y0+10)+'" x2="'+x+'" y2="'+(y0+22)+'" stroke="#52c07a" stroke-width="2"/>';   /* рама → паля */
-    if(t===ord[0]) o+='<text class="d" x="'+(x-64)+'" y="'+(y0+62)+'">перемички ПуВ 6 мм² по прогонах і між палями, на кожному столі</text>';
-  }
-  ord.forEach(function(t){ table(t,X[t],false); });
-  table(4,230,true,340);
-  /* траншея: труба DN40 — від бокса дальнього стола до вводу */
-  var ty=y0+110, xin=60;
-  var trenchPts=[[X[ord[0]]-55,y0+42],[X[ord[0]]-55,ty]];
-  for(var k=1;k<ord.length;k++){ var xx=X[ord[k]]; trenchPts.push([xx+50,ty]); }
-  trenchPts.push([xin,ty],[xin,y0+20]);
-  o+='<polyline points="'+trenchPts.map(function(p){return p.join(',');}).join(' ')+'" fill="none" stroke="#ff8c42" stroke-width="6" opacity=".35"/>';
-  o+='<polyline points="'+trenchPts.map(function(p){return p.join(',');}).join(' ')+'" fill="none" stroke="#52c07a" stroke-width="2"/>';  /* катанка в тій самій траншеї */
-  /* стрінги: червона/чорна пара від середини стола до бокса, далі вздовж траншеї */
+  /* магістраль */
+  o+='<polyline points="'+X[ord[0]]+','+ty+' '+xin+','+ty+' '+xin+','+(y0+10)+'" fill="none" stroke="#ff8c42" stroke-width="8" opacity=".3"/>';
+  o+='<polyline points="'+X[ord[0]]+','+(ty+6)+' '+(xin+6)+','+(ty+6)+' '+(xin+6)+','+(y0+10)+'" fill="none" stroke="#52c07a" stroke-width="2"/>';
   ord.forEach(function(t,k){
-    var x=X[t], bx=(k<ord.length-1)?x-55:x+50, by=y0+42;
-    o+='<line x1="'+(x-3)+'" y1="'+(y0+10)+'" x2="'+(bx-3)+'" y2="'+(by-8)+'" stroke="#e84545" stroke-width="1.6"/><line x1="'+(x+3)+'" y1="'+(y0+10)+'" x2="'+(bx+3)+'" y2="'+(by-8)+'" stroke="#111" stroke-width="1.6"/>';
-    o+='<rect x="'+(bx-8)+'" y="'+(by-6)+'" width="16" height="12" fill="#ff8c42" stroke="#10131a"/>';
-    if(k<ord.length-1) o+='<text class="d" x="'+(bx+10)+'" y="'+(by-8)+'">З'+(k+1)+' стояк Ø32</text>'; else o+='<text class="d" x="'+(bx-30)+'" y="'+(by+26)+'">З'+(k+1)+' стояк Ø32 · вузол (сюди всі стрінги)</text>';
-    if(k<ord.length-1){ /* далі по рамі наступного стола: пунктир по низу */
-      var nx=X[ord[k+1]]; o+='<line x1="'+(nx+50)+'" y1="'+(y0+50)+'" x2="'+(nx-55)+'" y2="'+(y0+50)+'" stroke="#e84545" stroke-width="1.2" stroke-dasharray="3 3"/>'; }
+    var x=X[t];
+    o+='<rect x="'+(x-75)+'" y="'+(y0-55)+'" width="150" height="62" rx="3" stroke="#4aa3ff" fill="#1c3b66"/>';
+    o+='<text class="t" x="'+(x-68)+'" y="'+(y0-38)+'">стіл '+t+'</text><text class="d" x="'+(x-68)+'" y="'+(y0-24)+'">16 ФЕМ = 1 стрінг → MPPT '+t+'</text>';
+    var px=[x-58,x-20,x+20,x+58];
+    [y0+20,y0+38].forEach(function(py){ px.forEach(function(qx){ o+='<circle cx="'+qx+'" cy="'+py+'" r="4" fill="#9aa3ad" stroke="#10131a"/>'; }); });
+    /* відгалуження посередині між палями 2 і 3 */
+    o+='<line x1="'+x+'" y1="'+(y0+50)+'" x2="'+x+'" y2="'+ty+'" stroke="#ff8c42" stroke-width="8" opacity=".3"/>';
+    o+='<line x1="'+(x+6)+'" y1="'+(y0+50)+'" x2="'+(x+6)+'" y2="'+(ty+6)+'" stroke="#52c07a" stroke-width="2"/>';
+    o+='<line x1="'+(x-2)+'" y1="'+(y0+7)+'" x2="'+(x-2)+'" y2="'+ty+'" stroke="#e84545" stroke-width="1.6"/><line x1="'+(x+2)+'" y1="'+(y0+7)+'" x2="'+(x+2)+'" y2="'+ty+'" stroke="#111" stroke-width="1.6"/>';
+    o+='<rect x="'+(x-8)+'" y="'+(y0+44)+'" width="16" height="12" fill="#ff8c42" stroke="#10131a"/>';
+    o+='<line x1="'+(x+6)+'" y1="'+(y0+50)+'" x2="'+(x+30)+'" y2="'+(y0+7)+'" stroke="#52c07a" stroke-width="2" stroke-dasharray="3 2"/>';
+    o+='<rect x="'+(x-10)+'" y="'+(ty-8)+'" width="20" height="16" fill="#2b313d" stroke="#cbd3df"/>';
+    o+='<text class="d" x="'+(x+12)+'" y="'+(ty-12)+'">колодязь '+(k+1)+'</text>';
   });
-  /* відвід на 4-й */
-  var lx=X[ord[ord.length-1]]+50;
-  o+='<polyline points="'+lx+','+ty+' '+lx+','+(y0+195)+'" fill="none" stroke="#9aa3ad" stroke-width="3" stroke-dasharray="4 6"/>';
-  o+='<rect x="'+(lx-8)+'" y="'+(ty+14)+'" width="16" height="12" fill="#9aa3ad" stroke="#10131a"/><text class="d" x="'+(lx+12)+'" y="'+(ty+24)+'">З4 стояк Ø32 — магістраль через нього</text>';
-  /* ввід */
-  o+='<rect x="'+(xin-40)+'" y="'+(y0-60)+'" width="130" height="80" rx="4" fill="#2a2412" stroke="#f5c518"/>';
-  o+='<text class="t" x="'+(xin-32)+'" y="'+(y0-42)+'">Ввід З5</text><text x="'+(xin-32)+'" y="'+(y0-26)+'">ПЗІП AC тип 1+2</text><text x="'+(xin-32)+'" y="'+(y0-12)+'">лічильник · ГЗШ</text><text x="'+(xin-32)+'" y="'+(y0+2)+'">інвертор X3-PRO</text><text class="d" x="'+(xin-32)+'" y="'+(y0+14)+'">ПЗІП DC вбудований</text>';
-  o+='<text class="d" x="'+(xin+8)+'" y="'+(ty+18)+'">катанка → ГЗШ</text>';
-  /* підписи траншеї */
-  o+='<text class="d" x="'+(X[ord[0]]-40)+'" y="'+(ty+18)+'">труба DN40 з протяжкою, 0,7 м; +/− стрінга разом</text>';
-  /* легенда */
-  var ly=H-52;
-  o+='<line x1="20" y1="'+ly+'" x2="50" y2="'+ly+'" stroke="#ff8c42" stroke-width="6" opacity=".35"/><text x="56" y="'+(ly+4)+'">траншея з трубою DN40</text>';
-  o+='<line x1="220" y1="'+ly+'" x2="250" y2="'+ly+'" stroke="#52c07a" stroke-width="2"/><text x="256" y="'+(ly+4)+'">катанка Ø10 / перемички 6 мм²</text>';
-  o+='<line x1="450" y1="'+ly+'" x2="480" y2="'+ly+'" stroke="#e84545" stroke-width="1.6"/><line x1="450" y1="'+(ly+4)+'" x2="480" y2="'+(ly+4)+'" stroke="#111" stroke-width="1.6"/><text x="486" y="'+(ly+4)+'">стрінг + / −</text>';
-  o+='<rect x="580" y="'+(ly-6)+'" width="16" height="12" fill="#ff8c42"/><text x="602" y="'+(ly+4)+'">стояк-закладна</text>';
-  o+='<circle cx="30" cy="'+(ly+22)+'" r="4" fill="#9aa3ad"/><text x="40" y="'+(ly+26)+'">паля в бетоні = електрод (24 шт ≈ 1–3 Ом)</text>';
-  o+='<text class="d" x="300" y="'+(ly+26)+'">схема принципова, не в масштабі; напрямок: ввід ліворуч, дальній стіл праворуч</text>';
+  o+='<text class="d" x="'+(X[ord[0]]+18)+'" y="'+(y0+80)+'">відгалуження ~4 м, між палями 2 і 3</text>';
+  o+='<text class="d" x="'+(X[ord[0]]+18)+'" y="'+(y0+93)+'">≥1,45 м від паль</text>';
+  o+='<text class="d" x="'+(xin+20)+'" y="'+(ty+26)+'">магістраль ≥2,2 м від паль · труба: 1 пара → DN32, 2 пари → DN40, 3 пари → DN50 · катанка Ø10 на дні поруч із трубою</text>';
+  o+='<rect x="'+(xin-50)+'" y="'+(y0-60)+'" width="120" height="80" rx="4" fill="#2a2412" stroke="#f5c518"/>';
+  o+='<text class="t" x="'+(xin-42)+'" y="'+(y0-42)+'">Ввід</text><text x="'+(xin-42)+'" y="'+(y0-27)+'">інвертор X3-PRO</text><text x="'+(xin-42)+'" y="'+(y0-13)+'">ПЗІП AC тип 1+2</text><text x="'+(xin-42)+'" y="'+(y0+1)+'">ГЗШ ← катанка</text>';
+  var ly=H-44;
+  o+='<line x1="20" y1="'+ly+'" x2="50" y2="'+ly+'" stroke="#ff8c42" stroke-width="8" opacity=".3"/><text x="56" y="'+(ly+4)+'">траншея з трубою</text>';
+  o+='<line x1="180" y1="'+ly+'" x2="210" y2="'+ly+'" stroke="#52c07a" stroke-width="2"/><text x="216" y="'+(ly+4)+'">катанка Ø10 (у землі)</text>';
+  o+='<line x1="360" y1="'+ly+'" x2="390" y2="'+ly+'" stroke="#52c07a" stroke-width="2" stroke-dasharray="3 2"/><text x="396" y="'+(ly+4)+'">мідь ПуВ 16 мм² до рами</text>';
+  o+='<line x1="560" y1="'+ly+'" x2="590" y2="'+ly+'" stroke="#e84545" stroke-width="1.6"/><line x1="560" y1="'+(ly+4)+'" x2="590" y2="'+(ly+4)+'" stroke="#111" stroke-width="1.6"/><text x="596" y="'+(ly+4)+'">стрінг + / −</text>';
+  o+='<rect x="20" y="'+(ly+14)+'" width="16" height="12" fill="#ff8c42"/><text x="42" y="'+(ly+24)+'">вихід із землі (труба Ø32 + бокс)</text>';
+  o+='<circle cx="290" cy="'+(ly+20)+'" r="4" fill="#9aa3ad"/><text x="300" y="'+(ly+24)+'">паля в бетоні — природний заземлювач; біля паль не копаємо</text>';
   return o+'</svg>';
 }
-
 function routeReport(){
-  var g=routeGeom(), html='<h3 style="margin:10px 0 4px">Траса кабелю</h3>'+
+  var g=routeGeom(), NT=state.tables.length;
+  var html='<h3 style="margin:10px 0 4px">Траса кабелю</h3>'+
     '<div class="hint" style="margin-bottom:6px"><b>Траншея не йде вздовж паль.</b> Магістраль — смугою вільної землі перед рядом, паралельно шнуру А–Г на '+TRENCH_Y+' м від нього '+
-    '(до найближчої палі ≥2,2 м). До кожного стола — коротке відгалуження, що підходить посередині між передніми палями 2 і 3, на 0,6 м перед ними (≥1,45 м від паль). '+
-    'Там кабель виходить із землі в трубі, піднімається на нижній прогін і йде по рамі в гофрі з УФ-захистом, на хомутах. Землю біля паль не чіпаємо — фундамент не послаблюємо. '+
-    'Траншею краще копати ДО заливки паль або після того, як бетон набере міцність (≥7 діб).</div>';
+    '(до найближчої палі ≥2,2 м). До кожного стола — коротке відгалуження посередині між передніми палями 2 і 3, на 0,6 м перед ними (≥1,45 м від паль). '+
+    'Там кабель виходить із землі в трубі й іде по рамі в гофрі з УФ-захистом. Кожен стрінг — одна пара +/− цілим шматком від стола до інвертора, без з’єднань у землі; '+
+    'у місцях, де відгалуження вливається в магістраль, — кабельний колодязь (ревізійна коробка), кабель проходить крізь нього не розрізаний.</div>';
   html+='<table><tr><th>Стрінг</th><th class="n">шлях в один бік</th><th class="n">кабель ×2</th><th class="n">ΔU 6 мм²</th><th class="n">втрата/рік</th></tr>';
   var cab=0, eloss=0;
   g.nodes.slice().sort(function(a,b){return a.i-b.i;}).forEach(function(n){
-    var Lc=2*n.oneway, R=RHO_CU*Lc/6, dV=R*IMP, pl=100*dV*IMP/PSTR, el=0.62*pl;   /* 0,62 — енергозважений I²  */
+    var Lc=2*n.oneway, R=RHO_CU*Lc/6, dV=R*IMP, pl=100*dV*IMP/PSTR, el=0.62*pl;
     cab+=Lc; eloss+=el;
     html+='<tr><td>стіл '+(n.i+1)+'</td><td class="n">'+n.oneway.toFixed(0)+' м</td><td class="n">'+Lc.toFixed(0)+' м</td>'+
       '<td class="n">'+dV.toFixed(1)+' В ('+(100*dV/VMP).toFixed(2)+'%)</td><td class="n">'+el.toFixed(2)+'% ≈ '+Math.round(el/100*10060)+' кВт·год</td></tr>';
   });
-  var L4=2*g.spur.oneway, R4=RHO_CU*L4/6, dV4=R4*IMP, el4=0.62*100*dV4*IMP/PSTR;
-  html+='<tr style="color:var(--dim)"><td>4-й стіл (перспектива)</td><td class="n">'+g.spur.oneway.toFixed(0)+' м</td><td class="n">'+L4.toFixed(0)+' м</td><td class="n">'+dV4.toFixed(1)+' В ('+(100*dV4/VMP).toFixed(2)+'%)</td><td class="n">'+el4.toFixed(2)+'% ≈ '+Math.round(el4/100*10060)+' кВт·год</td></tr>';
   html+='</table>';
-  var seg=g.seg, last=g.seg[g.seg.length-1];
-  var NT=state.tables.length;
-  var kUnder=g.frameL*Math.max(0,NT-2);        /* прохід під проміжними столами: крайні не перетинаємо */
-  var kTooth=2.6*(2*NT-1);                     /* зуб на другу палю: на крайньому столі 2,6 (катанка там починається), на решті 5,2 */
-  var kRises=1.2*NT*2+3;                       /* підйоми з траншеї до кожного затискача + заведення на ГЗШ і петля на З4 */
-  var strip=g.trench+kUnder+kTooth+kRises, Ls=g.trench;
+  var spurs=g.seg.filter(function(x){return x.spur;}), mains=g.seg.filter(function(x){return !x.spur;});
+  var spurL=spurs.reduce(function(a,x){return a+x.len;},0);
+  function lenBy(n){ return mains.filter(function(x){return x.strings===n;}).reduce(function(a,x){return a+x.len;},0); }
+  var dn32=spurL+lenBy(1), dn40=lenBy(2), dn50=lenBy(3)+lenBy(4);
+  var kat=g.trench+NT*1.5+3;                     /* траншея + вихід із землі в кожному відгалуженні + заведення на ГЗШ */
   var minCab=Math.ceil(cab/10)*10, resCab=Math.ceil(cab*1.1/10)*10;
-  html+='<div class="hint">Втрати при 4 мм²: ×1,5 (разом ≈'+Math.round(eloss/100*10060*1.5)+' кВт·год/рік проти '+Math.round(eloss/100*10060)+' при 6 мм²). Брати той переріз, що дешевший за метр: 6 мм² є від 36 ₴/м, 4 мм² від 38 ₴/м.</div>';
   html+='<table><tr><th>Матеріал</th><th class="n">мінімум</th><th class="n">з запасом</th></tr>'+
-    '<tr><td>Сонячний кабель H1Z2Z2-K (червоний + чорний порівну)</td><td class="n">'+minCab+' м</td><td class="n">'+resCab+' м</td></tr>'+
-    '<tr><td>Труба ПНД двостінна DN40 з протяжкою, одна на всю траншею</td><td class="n">DN40 '+Math.ceil(g.trench/5)*5+' м</td><td class="n">DN40 '+Math.ceil(g.trench*1.15/5)*5+' м + DN50 на магістраль</td></tr>'+
-    '<tr><td>ПЕ Ø32 на стояки біля паль і ввід</td><td class="n">'+(state.tables.length*2+2)+' м</td><td class="n">12 м</td></tr>'+
-    '<tr><td>Конектори MC4 1500 В, пар</td><td class="n">'+(state.tables.length*2)+'</td><td class="n">'+(state.tables.length*2+4)+'</td></tr>'+
-    '<tr><td>Бокс DC з роз\'єднувачем і ПЗІП тип 2 на вузлі</td><td class="n">— (є в інверторі)</td><td class="n">1</td></tr>'+
-    '<tr><td>Катанка оцинкована Ø10 у траншеї (Ø8 = 50 мм² — рівно мінімум ДСТУ, без запасу на корозію)</td><td class="n">Ø10 '+Math.ceil(strip/5)*5+' м</td><td class="n">Ø10 '+Math.ceil(strip*1.1/5)*5+' м</td></tr>'+
-    '<tr><td>Штирі 2 м / кутник 50×50×5</td><td class="n">не потрібні</td><td class="n">не потрібні</td></tr>'+
-    '<tr><td>ПуВ 6 мм² жовто-зелений, перемички рам → палі</td><td class="n">'+Math.round(state.tables.length*10)+' м</td><td class="n">'+Math.round(state.tables.length*(g.frameL+6)*1.2)+' м</td></tr>'+
-    '<tr><td>ПуВ 10 мм² катанка → ГЗШ будинку</td><td class="n">— (катанка сама заходить до ГЗШ)</td><td class="n">'+Math.round(last.len+6)+' м</td></tr>'+
-    '<tr><td>Затискачі катанка–паля (по 2 на стіл: передня + задня) + контрольний роз\'єм</td><td class="n">'+(state.tables.length*2+1)+'</td><td class="n">'+(state.tables.length*2+2)+'</td></tr>'+
-    '<tr><td>ПЗІП AC тип 1+2 на ввід (умова гарантії) · ПЗІП DC тип 2 у боксі на вузлі</td><td class="n">1 + 1</td><td class="n">1 + 1</td></tr></table>';
-  html+='<div class="hint">Мінімум ≈ '+Math.round(minCab*38/100)*100+' ₴ кабель + '+Math.round(Math.ceil(strip/5)*5*70/100)*100+' ₴ катанка Ø10 + '+Math.round(g.trench*40/100)*100+' ₴ труба + ~900 ₴ затискачі й MC4 + 2 000–3 500 ₴ ПЗІП AC ≈ <b>'+Math.round((minCab*38+Math.ceil(strip/5)*5*70+g.trench*40+900+2500)/500)*500+' ₴</b> (штирі й контур навколо масиву прибрані; ціни OLX/Prom 09.2026).</div>';
-  html+='<table><tr><th>Траншея</th><th class="n">довжина</th><th class="n">жил DC</th><th>примітка</th></tr>';
-  g.seg.forEach(function(x){ html+='<tr><td>'+x.name+'</td><td class="n">'+x.len.toFixed(1)+' м</td><td class="n">'+(2*x.strings)+'</td><td>'+(x===last?'магістраль: 6 жил зараз (26 %), 8 зі столом 4 (35 %) — DN40 вистачає':'DN40 одна на всю трасу')+'</td></tr>'; });
-  html+='<tr><td><b>разом</b></td><td class="n"><b>'+g.trench.toFixed(1)+' м</b></td><td class="n">—</td><td>глибина 0,7 м, під проїздом 1,0 м; сигнальна стрічка на 0,25 м вище</td></tr>'+
-    '<tr style="color:var(--dim)"><td>перспектива: 4-й стіл</td><td class="n">0 м</td><td class="n">+2</td><td>магістраль іде через З4 — окремої траншеї не треба, лише затягнути 2 жили в наявну трубу</td></tr></table>';
-  html+='<h3 style="margin:10px 0 4px">Звідки береться катанка</h3><table><tr><th>Складова</th><th class="n">м</th><th>чому</th></tr>'+
-    '<tr><td>траншея по трасі</td><td class="n">'+g.trench.toFixed(1)+'</td><td>сума сегментів нижче</td></tr>'+
-    '<tr><td>прохід під проміжними столами</td><td class="n">'+kUnder.toFixed(1)+'</td><td>катанка входить зі сходу, виходить із заходу — мусить перетнути стіл</td></tr>'+
-    '<tr><td>зуб на другу палю</td><td class="n">'+kTooth.toFixed(1)+'</td><td>2,6 туди й назад на кожному столі; на дальньому лише 2,6 — катанка там починається</td></tr>'+
-    '<tr><td>підйоми до затискачів, ГЗШ, петля на З4</td><td class="n">'+kRises.toFixed(1)+'</td><td>0,7 м угору з дна + вихід над землею на кожну з '+(NT*2)+' паль</td></tr>'+
-    '<tr><td><b>разом</b></td><td class="n"><b>'+strip.toFixed(1)+'</b></td><td>з 10 % на вигини й заведення — <b>'+Math.ceil(strip*1.1/5)*5+' м</b></td></tr>'+
-    '<tr style="color:var(--dim)"><td>якщо затискач один на стіл, а не два</td><td class="n">'+(strip-kTooth-1.2*NT).toFixed(1)+'</td><td>зуб відпадає; дозволено, якщо стик кроква–стійка має зубчасту шайбу і прозвонено</td></tr></table>';
-  html+='<div class="hint">Плюс і мінус одного стрінга — в одній трубі (мала петля для перенапруг). Уздовж рам ближчих столів кабель іде по конструкції стяжками, не в землі. Роз\'єднувач DC і ПЗІП тип 2 DC вбудовані в X3-PRO, окремий бокс — лише з запасом.</div>';
-  html+='<h3 style="margin:10px 0 4px">Схема закладних, прокладки і перемичок</h3>'+wiringSVG(g);
-  html+='<h3 style="margin:10px 0 4px">Заземлення</h3>';
-  html+='<table><tr><th>Питомий опір ґрунту</th><th class="n">штир 2 м</th><th class="n">катанка '+Ls.toFixed(0)+' м</th><th class="n">разом ('+g.rods.length+' штирі + катанка, k=0,8)</th></tr>';
-  [50,100,150].forEach(function(rho){
-    var L=2, d=0.0475, Rr=rho/(2*Math.PI*L)*Math.log(4*L/d), Rs=rho/(2*Math.PI*Ls)*Math.log(Ls*Ls/(0.01*0.7));
-    var Rt=1/(1/Rs+g.rods.length/Rr)/0.8;
-    html+='<tr><td>'+rho+' Ом·м ('+(rho<=50?"вологий суглинок заплави":(rho<=100?"суглинок звичайний":"сухий супісок"))+')</td><td class="n">'+Rr.toFixed(0)+' Ом</td><td class="n">'+Rs.toFixed(1)+' Ом</td><td class="n"><b>'+Rt.toFixed(1)+' Ом</b></td></tr>';
-  });
-  html+='</table><div class="hint">Якщо палі — сталеві стійки в бетоні по 1 м (ø300), вони самі є заземлювачем: 8 паль стола ≈ 2–7 Ом, усі 24 ≈ 1–3 Ом; катанка тоді лише зв\'язує столи й ГЗШ (або ПуВ 10 мм² у трубі), штирі не потрібні. Норма ПУЕ для повторного заземлення PEN на вводі — 30 Ом, палі перекривають її на порядок, тому окремі штирі й контур навколо масиву зняті. Обов\'язкове натомість інше: один провідник столи → ГЗШ (це і є катанка) і ПЗІП AC на вводі. Заміряти кожен стіл після монтажу, протокол у пакет для обленерго.</div>';
+    '<tr><td>Сонячний кабель H1Z2Z2-K 6 мм² (червоний + чорний порівну)</td><td class="n">'+minCab+' м</td><td class="n">'+resCab+' м</td></tr>'+
+    '<tr><td>Труба ПНД гофра з протяжкою DN32 (відгалуження + магістраль на 1 пару)</td><td class="n">'+Math.ceil(dn32)+' м</td><td class="n">'+Math.ceil(dn32*1.15)+' м</td></tr>'+
+    '<tr><td>Труба DN40 (магістраль на 2 пари)</td><td class="n">'+Math.ceil(dn40)+' м</td><td class="n">'+Math.ceil(dn40*1.15)+' м</td></tr>'+
+    '<tr><td>Труба DN50 (магістраль на 3 пари до інвертора)</td><td class="n">'+Math.ceil(dn50)+' м</td><td class="n">'+Math.ceil(dn50*1.15)+' м</td></tr>'+
+    '<tr><td>Кабельні колодязі / ревізійні коробки IP67 у місцях врізки</td><td class="n">'+NT+'</td><td class="n">'+NT+'</td></tr>'+
+    '<tr><td>Гофра з УФ-захистом по рамі (від колодязя до кінців стрінга)</td><td class="n">'+(NT*8)+' м</td><td class="n">'+(NT*10)+' м</td></tr>'+
+    '<tr><td>Катанка оцинкована Ø10 на дні траншеї</td><td class="n">'+Math.ceil(kat/5)*5+' м</td><td class="n">'+Math.ceil(kat*1.1/5)*5+' м</td></tr>'+
+    '<tr><td>ПуВ 16 мм² жовто-зелений: від катанки до рами кожного стола</td><td class="n">'+(NT*3)+' м</td><td class="n">'+(NT*4)+' м</td></tr>'+
+    '<tr><td>ПуВ 6 мм²: перемички між прогонами / стійками на кожному столі</td><td class="n">'+(NT*6)+' м</td><td class="n">'+(NT*8)+' м</td></tr>'+
+    '<tr><td>Затискачі «катанка–мідь» (біметал, над землею, у коробці) + контрольний роз’єм</td><td class="n">'+(NT+1)+'</td><td class="n">'+(NT+2)+'</td></tr>'+
+    '<tr><td>Конектори MC4 1500 В, пар</td><td class="n">'+(NT*2)+'</td><td class="n">'+(NT*2+4)+'</td></tr>'+
+    '<tr><td>ПЗІП AC тип 1+2 на ввід · ПЗІП DC — вбудований в інвертор</td><td class="n">1</td><td class="n">1</td></tr></table>';
+  html+='<div class="hint">Втрати при 4 мм² були б ×1,5 ('+Math.round(eloss/100*10060*1.5)+' проти '+Math.round(eloss/100*10060)+' кВт·год/рік).</div>';
+  html+='<table><tr><th>Траншея</th><th class="n">довжина</th><th class="n">жил DC</th></tr>';
+  g.seg.forEach(function(x){ html+='<tr><td>'+x.name+'</td><td class="n">'+x.len.toFixed(1)+' м</td><td class="n">'+(2*x.strings)+'</td></tr>'; });
+  html+='<tr><td><b>разом</b></td><td class="n"><b>'+g.trench.toFixed(1)+' м</b></td><td>глибина 0,7 м, пісок 10 см, сигнальна стрічка на 0,3 м вище</td></tr></table>';
+  html+='<h3 style="margin:10px 0 4px">Заземлення</h3><div class="hint">'+
+    '1) <b>Заземлювач — самі палі.</b> Стійки прикручені до закладних у бетоні, 8 паль на стіл (24 разом) працюють як фундаментний заземлювач. Біля паль нічого не копаємо й не приварюємо.<br>'+
+    '2) <b>Стіл всередині:</b> рами панелей з’єднані з прогонами затискачами з зубцями (або шайбами для заземлення), прогони й стійки — перемичками ПуВ 6 мм² на болтах; вся рама стола — одне ціле.<br>'+
+    '3) <b>Між столами й до будинку:</b> катанка Ø10 на дні тієї ж траншеї, поруч із трубою. У кожному відгалуженні вона виходить із землі біля колодязя; над землею, у коробці, біметалевим затискачем переходить на мідь ПуВ 16 мм², яка йде до рами стола. Сталь із міддю в землі не з’єднувати.<br>'+
+    '4) <b>Біля інвертора</b> катанка заходить на ГЗШ будинку; туди ж PE інвертора й ПЗІП AC тип 1+2.<br>'+
+    '5) <b>Після монтажу заміряти опір</b> (електролабораторія або обленерго): ціль ≤10 Ом. Якщо більше — 2 вертикальні електроди 2–3 м на кінцях магістралі, приварені до катанки.</div>';
+  html+='<h3 style="margin:10px 0 4px">Схема</h3>'+wiringSVG(g);
   return html;
 }
 
@@ -1585,7 +1545,7 @@ function stakeout(){
   html+=routeReport();
   html+='<div class="row" style="margin-top:8px"><button id="piles">Координати паль</button></div><div id="pilebox"></div>';
   document.getElementById("stake").innerHTML=html;
-  document.getElementById("piles").onclick=function(){
+  document.getElementById("piles").onclick=function(){ openPiles(0); return;
     var h='<table><tr><th>Паля</th><th class="n">широта</th><th class="n">довгота</th></tr>';
     state.tables.forEach(function(t,i){
       pileLL(t).forEach(function(p){

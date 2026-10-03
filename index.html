@@ -99,7 +99,6 @@
     <label><input type="checkbox" data-lay="points" checked> точки фото-зйомки</label>
     <label><input type="checkbox" data-lay="route" checked> траса кабелю й заземлення</label>
     <label><input type="checkbox" data-lay="plot" checked> межа городу</label>
-    <label><input type="checkbox" data-lay="t4" checked> резерв 4-го стола</label>
   </div>
   <div class="row"><button id="schemebtn">схема кабелю і заземлення</button></div>
 </div>
@@ -334,7 +333,7 @@ function buildTable(t, ghost){
 var n0=scene.children.length;
 function buildTables(){ var m=scene.children.length; TABLES.forEach(function(t){ buildTable(t,false); }); grab("tables",m); }
 buildTables(); n0=scene.children.length;
-buildTable(T4,true);
+/* 4-й стіл поки не плануємо */
 grab("t4",n0);
 
 
@@ -366,7 +365,6 @@ function buildRoute(){ var m=scene.children.length;
     var m=new THREE.Mesh(new THREE.BoxGeometry(0.35,0.45,0.2), boxM); m.position.set(o.r[0], g0+0.9, -o.r[1]); m.castShadow=true; scene.add(m);
     var c=new THREE.Mesh(new THREE.CylinderGeometry(0.04,0.04,1.4,6), stubM); c.position.set(o.r[0], g0+0.5, -o.r[1]); scene.add(c);
   });
-  var r4=riser(T4), j4=P(inv(r4)[0],TY); line([r4,j4],0x9aa3ad,true);
   var jM=new THREE.LineBasicMaterial({color:0x52c07a});
   TABLES.forEach(function(t){ var g0=ground(t.x,t.y);
     [0.844,3.444].forEach(function(v){ var pts=[0,2.7,5.4,8.1].map(function(u){ return new THREE.Vector3(t.x-(u-4.65+0.557), g0+0.5, -(t.y+v)); }); scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), jM)); });
