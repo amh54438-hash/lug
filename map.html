@@ -16,6 +16,19 @@
     font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
   #wrap{display:flex;height:100%}
   #map{flex:1;min-width:0}
+  .plab span{position:absolute;transform:translate(4px,-14px);font:600 10.5px -apple-system,sans-serif;color:#fff;
+    text-shadow:0 0 3px #000,0 0 3px #000;white-space:nowrap;pointer-events:none}
+  .lowzoom .plab{display:none}
+  #pilesheet{position:fixed;z-index:2000;top:0;right:0;bottom:0;width:50vw;min-width:360px;background:var(--panel);
+    border-left:1px solid var(--line);box-shadow:-8px 0 30px rgba(0,0,0,.45);overflow:auto;padding:14px 16px 30px}
+  #pilesheet[hidden]{display:none}
+  #pilesheet h3{margin:0 0 4px;font-size:17px}
+  #pilesheet .top{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+  #pilesheet .top .sp{flex:1}
+  #pilesheet table td,#pilesheet table th{font-size:13px;padding:5px 6px}
+  #pilesheet td.id{font-weight:700;color:var(--sun)}
+  @media (max-width:760px){ #pilesheet{top:auto;left:0;width:auto;min-width:0;height:55vh;border-left:0;border-top:1px solid var(--line);
+    box-shadow:0 -8px 30px rgba(0,0,0,.45)} }
   aside{width:360px;background:var(--panel);border-left:1px solid var(--line);
     overflow-y:auto;padding:14px 14px 40px}
   h1{font-size:16px;margin:0 0 2px}
@@ -110,6 +123,9 @@
       <button id="planfree" style="flex:1">Вільна (макс.)</button>
     </div>
     <div class="row">
+      <button class="go" id="pilesbtn" style="flex:1">Координати паль (клік по столу)</button>
+    </div>
+    <div class="row">
       <button id="auto" style="flex:1">Підібрати розкладку сам</button>
     </div>
     <div class="row">
@@ -147,6 +163,14 @@
     </div>
     <div class="hint">Точки зберігаються у цьому браузері. Дерева, які ти вже зрізав, познач «зрізане» — вони перестануть кидати тінь, але залишаться в списку.</div>
   </aside>
+</div>
+<div id="pilesheet" hidden>
+  <div class="top">
+    <h3 id="pstitle">Палі</h3><span class="sp"></span>
+    <button id="psprev">◀</button><button id="psnext">▶</button>
+    <button id="pscsv">CSV усіх паль</button><button id="psclose">✕</button>
+  </div>
+  <div id="psbody"></div>
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="weather.js"></script>
@@ -670,7 +694,8 @@ function draw(){
      .on("dragend",function(){ fillCorridorSelect(); draw(); shadows(); drawCorridor(); });
   });
   state.tables.forEach(function(t,i){
-    L.polygon(LLs(tableFoot(t)),{color:"#4aa3ff",weight:2,fillColor:"#4aa3ff",fillOpacity:.35}).addTo(gTables);
+    L.polygon(LLs(tableFoot(t)),{color:"#4aa3ff",weight:2,fillColor:"#4aa3ff",fillOpacity:.35}).addTo(gTables)
+     .on("click",function(){ openPiles(i); }).bindTooltip("стіл "+(i+1)+" — натисни, щоб побачити палі",{sticky:true});
     var fr=frame(t.az);
     L.polyline(LLs([[t.x-fr.s[0]*TLEN/2,t.y-fr.s[1]*TLEN/2],[t.x+fr.s[0]*TLEN/2,t.y+fr.s[1]*TLEN/2]]),
       {color:"#cde7ff",weight:3}).addTo(gTables);   /* нижній край — фасад */
@@ -845,10 +870,75 @@ function drawPlan(){
     L.circleMarker(toLL(p[0],p[1]),{radius:4,color:"#ff9f43",weight:2,fillColor:"#10131a",fillOpacity:1,interactive:false}).addTo(gPlan);
   });
   /* палі — саме тих столів, що зараз стоять (не з креслення v4) */
-  state.tables.forEach(function(t){ pileLL(t).forEach(function(p){
+  state.tables.forEach(function(t,ti){ pileRows(ti).forEach(function(p){
     L.circle(toLL(p.x,p.y),{radius:0.15,color:"#e7ecf3",weight:1,fillColor:"#555",fillOpacity:1,interactive:false}).addTo(gPlan);
+    L.marker(toLL(p.x,p.y),{interactive:false,icon:L.divIcon({className:"plab",iconSize:[0,0],html:'<span>'+p.id+'</span>'})}).addTo(gPlan);
   }); });
 }
+
+/* ---------------- координати паль: таблиця на пів екрана ---------------- */
+var PA=PLAN_V4.rect[0], PG=PLAN_V4.rect[3], PB=PLAN_V4.rect[1];
+var PUX=(function(){ var dx=PG[0]-PA[0], dy=PG[1]-PA[1], L0=Math.hypot(dx,dy); return [dx/L0,dy/L0]; })();
+var PUY=(function(){ var dx=PB[0]-PA[0], dy=PB[1]-PA[1], L0=Math.hypot(dx,dy); return [dx/L0,dy/L0]; })();
+function planXY(x,y){ var d=[x-PA[0],y-PA[1]]; return [d[0]*PUX[0]+d[1]*PUX[1], d[0]*PUY[0]+d[1]*PUY[1]]; }
+/* нумерація: 1–4 передній (нижній, південний) ряд зі сходу на захід, 5–8 задній ряд зі сходу на захід */
+function pileRows(ti){
+  var t=state.tables[ti], P=pileLL(t), out=[];
+  [["передня",0],["задня",4]].forEach(function(g){
+    for(var k=1;k<=4;k++){ var p=P.filter(function(q){return q.n===g[0]+" "+k;})[0]; if(!p) continue;
+      var q=planXY(p.x,p.y);
+      out.push({n:g[1]+k, id:(ti+1)+"."+(g[1]+k), name:g[0]+" "+k, x:p.x, y:p.y, X:q[0], Y:q[1], lat:p.ll[0], lon:p.ll[1]}); }
+  });
+  return out;
+}
+var PS={i:0};
+function f2(v){ return v.toFixed(2).replace(".",","); }
+function openPiles(i){
+  PS.i=(i+state.tables.length)%state.tables.length;
+  var rows=pileRows(PS.i), t=state.tables[PS.i];
+  document.getElementById("pstitle").textContent="Стіл "+(PS.i+1)+" — 8 паль";
+  /* схема згори: південь знизу, палі в масштабі */
+  var W=520, H=270, m=40, sx=(W-2*m)/9.3, sy=(H-2*m-20)/4.15;
+  function X(u){ return m+(4.65-u)*sx; }   /* u — на захід від центру (як у pileLL), схід ліворуч */
+  function Yv(v){ return H-m-v*sy; }
+  var svg='<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;max-width:640px;display:block;background:#0e1219;border:1px solid var(--line);border-radius:8px">';
+  svg+='<rect x="'+X(4.65)+'" y="'+Yv(4.148)+'" width="'+(9.3*sx)+'" height="'+(4.148*sy)+'" fill="#1c3b66" stroke="#4aa3ff"/>';
+  for(var c=1;c<8;c++){ var uu=4.65-0.04-c*1.155; svg+='<line x1="'+X(uu)+'" y1="'+Yv(0)+'" x2="'+X(uu)+'" y2="'+Yv(4.148)+'" stroke="#2f5d94" stroke-width="1"/>'; }
+  svg+='<line x1="'+X(4.65)+'" y1="'+Yv(2.074)+'" x2="'+X(-4.65)+'" y2="'+Yv(2.074)+'" stroke="#2f5d94"/>';
+  svg+='<line x1="'+X(4.65)+'" y1="'+Yv(0)+'" x2="'+X(-4.65)+'" y2="'+Yv(0)+'" stroke="#cde7ff" stroke-width="3"/>';
+  rows.forEach(function(p){
+    var k=(p.n-1)%4, u=[0,2.7,5.4,8.1][k]-4.65+0.557, v=p.n<=4?0.844:3.444;
+    svg+='<circle cx="'+X(u)+'" cy="'+Yv(v)+'" r="9" fill="#10131a" stroke="#f5c518" stroke-width="2"/>'+
+         '<text x="'+X(u)+'" y="'+(Yv(v)+4)+'" text-anchor="middle" font-size="11" font-weight="700" fill="#f5c518">'+p.n+'</text>';
+  });
+  svg+='<text x="'+(W/2)+'" y="'+(H-8)+'" text-anchor="middle" font-size="12" fill="#98a3b4">↓ південь (нижній край панелей, +0,647)</text>';
+  svg+='<text x="'+(W/2)+'" y="16" text-anchor="middle" font-size="12" fill="#98a3b4">↑ північ, бік річки (верхній край +3,058)</text>';
+  svg+='<text x="6" y="'+(H/2)+'" font-size="12" fill="#98a3b4">зах.</text><text x="'+(W-30)+'" y="'+(H/2)+'" font-size="12" fill="#98a3b4">сх.</text>';
+  svg+='<text x="'+((X(4.093)+X(1.393))/2)+'" y="'+(Yv(0.844)+24)+'" text-anchor="middle" font-size="11" fill="#cbd3df">2,70</text>';
+  svg+='<text x="'+(X(4.093)-26)+'" y="'+((Yv(0.844)+Yv(3.444))/2+4)+'" font-size="11" fill="#cbd3df">2,60</text>';
+  svg+='</svg>';
+  var tb='<table><tr><th>№</th><th>паля</th><th class="n">X від А, м</th><th class="n">Y від А–Г, м</th><th class="n">широта</th><th class="n">довгота</th></tr>';
+  rows.forEach(function(p){ tb+='<tr><td class="id">'+p.id+'</td><td>'+p.name+'</td><td class="n">'+f2(p.X)+'</td><td class="n">'+f2(p.Y)+'</td><td class="n">'+p.lat.toFixed(7)+'</td><td class="n">'+p.lon.toFixed(7)+'</td></tr>'; });
+  tb+='</table>';
+  var onLine=rows.filter(function(p){return Math.abs(p.Y)<0.05;}).map(function(p){return p.id;});
+  document.getElementById("psbody").innerHTML=svg+
+    '<div class="hint" style="margin:8px 0">Схема як на карті: північ угорі, схід праворуч. Нумерація: <b>1–4</b> — передній ряд (південний), <b>5–8</b> — задній, обидва зі сходу на захід. '+
+    'Номер на карті <b>'+(PS.i+1)+'.N</b> = стіл '+(PS.i+1)+', паля N.</div>'+tb+
+    '<div class="hint" style="margin-top:10px"><b>Як виносити:</b> X — рулеткою від точки А вздовж шнура А→Г (мінус — за А, у бік північно-східного кінця); '+
+    'Y — під прямим кутом від шнура в бік хати (кут — трикутником 3-4-5 м).'+(onLine.length?' Паля <b>'+onLine.join(", ")+'</b> стоїть рівно на шнурі А–Г.':'')+
+    '<br><b>Перевірка:</b> уздовж ряду 2,70 м між палями, між рядами 2,60 м, діагональ прямокутника з 4 паль 3,748 м (як у кресленні). GPS телефона помиляється на 2–3 м — рулетка точніша.</div>';
+  document.getElementById("pilesheet").hidden=false;
+  map.flyToBounds(LLs(tableFoot(t)),{padding:[60,60],maxZoom:21,duration:0.5});
+}
+document.getElementById("psclose").onclick=function(){ document.getElementById("pilesheet").hidden=true; };
+document.getElementById("psprev").onclick=function(){ openPiles(PS.i-1); };
+document.getElementById("psnext").onclick=function(){ openPiles(PS.i+1); };
+document.getElementById("pscsv").onclick=function(){
+  var lines=["стіл;№;паля;X від А, м;Y від А–Г, м;широта;довгота"];
+  state.tables.forEach(function(t,ti){ pileRows(ti).forEach(function(p){ lines.push([ti+1,p.id,p.name,f2(p.X),f2(p.Y),p.lat.toFixed(7),p.lon.toFixed(7)].join(";")); }); });
+  var a=document.createElement("a"); a.href=URL.createObjectURL(new Blob(["﻿"+lines.join("\n")],{type:"text/csv"})); a.download="pali.csv"; a.click();
+};
+function plabZoom(){ var c=document.getElementById("map"); if(c) c.classList.toggle("lowzoom", map.getZoom()<20); }
 
 /* ---------------- траса кабелю і заземлення ---------------- */
 var RHO_CU=0.0175, IMP=14.0, VMP=700, PSTR=10000;   /* Ом·мм²/м, А, В, Вт на стрінг */
@@ -1843,6 +1933,9 @@ try{ if(!localStorage.getItem("solar.row.applied")){
      } }catch(e){}
 fillCorridorSelect(); phUI(); draw(); drawCanopy(); shadows(); drawCorridor();
 window.addEventListener("resize",function(){ sunChart(); });
+document.getElementById("pilesbtn").onclick=function(){ openPiles(0); };
+map.on("zoomend",plabZoom); plabZoom();
+if(/piles/.test(location.hash+location.search)) setTimeout(function(){ openPiles(0); },400);
 document.getElementById("gndinfo").innerHTML="Рельєф: растр Copernicus DSM, крок 4 м, радіус 400 м (ухил ділянки ~"+slopePct().toFixed(0)+
   "%, падає на "+compassAdj(slopeAz())+"). Далі 110 м тінь рахується по поверхні DSM разом із лісом.";
 setTimeout(function(){ map.invalidateSize(); map.fitBounds(LLs(state.plot),{padding:[30,30],maxZoom:19}); },200);
