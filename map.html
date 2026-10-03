@@ -844,9 +844,10 @@ function drawPlan(){
       html:'<div style="transform:translate(-50%,-130%);white-space:nowrap;font:600 12px -apple-system,sans-serif;color:#ffcf8a;text-shadow:0 0 3px #000,0 0 3px #000">'+PLAN_V4.names[i]+'</div>'})}).addTo(gPlan);
     L.circleMarker(toLL(p[0],p[1]),{radius:4,color:"#ff9f43",weight:2,fillColor:"#10131a",fillOpacity:1,interactive:false}).addTo(gPlan);
   });
-  PLAN_V4.piles.forEach(function(p){
-    L.circle(toLL(p[0],p[1]),{radius:0.15,color:"#e7ecf3",weight:1,fillColor:"#555",fillOpacity:1,interactive:false}).addTo(gPlan);
-  });
+  /* палі — саме тих столів, що зараз стоять (не з креслення v4) */
+  state.tables.forEach(function(t){ pileLL(t).forEach(function(p){
+    L.circle(toLL(p.x,p.y),{radius:0.15,color:"#e7ecf3",weight:1,fillColor:"#555",fillOpacity:1,interactive:false}).addTo(gPlan);
+  }); });
 }
 
 /* ---------------- траса кабелю і заземлення ---------------- */
