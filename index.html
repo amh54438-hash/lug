@@ -84,7 +84,7 @@
     <button data-v="eye">з городу</button><button data-v="iso">збоку</button>
   </div>
   <div class="row"><button data-ph="apple">яблуня: є</button><button data-ph="acacia">акації: є</button></div>
-  <div class="sub" style="margin:2px 0 8px">Яблуня біля східного кута (~8,5 м) і акації за південно-західним кутом (~17 м, ажурні) знайдені на фото 02–03.10. Натисни, щоб побачити тіні без них. Без яблуні +350 кВт·год/рік, без акацій +400 (≈1,6 і 1,8 тис. ₴/рік).</div>
+  <div class="sub" style="margin:2px 0 8px">Яблуня біля східного кута (~8,5 м) і акації за кухнею, праворуч від будівлі (~19 м), знайдені на фото 02–03.10. Натисни, щоб побачити тіні без них. Без яблуні +420 кВт·год/рік, без акацій +440 (≈1,9 і 2,0 тис. ₴/рік); вкоротити яблуню до 4,5 м чи акації до 10 м дає майже стільки ж.</div>
   <div class="row"><button id="schemebtn">схема кабелю і заземлення</button></div>
 </div>
 <div id="bar"><button id="play2" aria-label="Запустити день">▶</button><span id="tl2" class="val"></span><a id="ar" rel="ar" href="model.usdz">AR</a></div>
@@ -237,11 +237,11 @@ scene.add(tr); scene.add(cr);
 
 /* ---------- дерева, знайдені на фото 02–03.10.2026 (сітка точок з висоти 65 см) ---------- */
 var PHOTO=[{id:"apple",parts:[[25,32.5]],r:4,h:8.5,round:true},
-           {id:"acacia",parts:[[-33.5, 3.1], [-30.4, -0.8], [-27.4, -4.8], [-24.3, -8.7]],r:3,h:17.5,sparse:true}];
+           {id:"acacia",parts:[[-17.9, -12.7], [-15.1, -13.9], [-12.4, -15.1], [-9.6, -16.3]],r:2.8,h:19,leafy:true}];
 var phObj={};
 PHOTO.forEach(function(t){
   var grp=new THREE.Group();
-  var cm=new THREE.MeshStandardMaterial({color:t.round?0x5f8f3a:0x8a9a52, roughness:1,
+  var cm=new THREE.MeshStandardMaterial({color:t.round?0x5f8f3a:0x6f8a3c, roughness:1,
     transparent:!!t.sparse, opacity:t.sparse?0.42:1, depthWrite:!t.sparse});
   t.parts.forEach(function(p){
     var g0=ground(p[0],p[1]);
