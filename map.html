@@ -909,6 +909,24 @@ function pileRows(ti){
 }
 var PS={i:0};
 function f2(v){ return v.toFixed(2).replace(".",","); }
+/* простий винос шнурами: 4 кутові палі → 2 шнури → по 2,70 м */
+function stringMethod(rows){
+  function g(n){ return rows.filter(function(p){return p.n===n;})[0]; }
+  function d(a,b){ return Math.hypot(a.x-b.x,a.y-b.y); }
+  var p1=g(1),p4=g(4),p5=g(5),p8=g(8); if(!p1||!p4||!p5||!p8) return "";
+  var id=function(p){return '<b style="color:var(--sun)">'+p.id+'</b>';};
+  var xy=function(p){return id(p)+' (X '+f2(p.X)+'; Y '+f2(p.Y)+')';};
+  return '<div class="pcard" style="margin-top:14px"><div class="h"><b style="font-size:15px;color:var(--ink)">Простий спосіб: дві лінії шнура</b></div>'+
+   '<ol style="margin:8px 0 0 18px;padding:0;font-size:13.5px;line-height:1.55">'+
+   '<li>Від шнура А–Г рулеткою винеси лише <b>4 кутові палі</b>: '+xy(p1)+', '+xy(p4)+', '+xy(p5)+', '+xy(p8)+'. Забий арматуру.</li>'+
+   '<li>Перевір прямокутник: '+id(p1)+'–'+id(p4)+' = '+f2(d(p1,p4))+' м, '+id(p5)+'–'+id(p8)+' = '+f2(d(p5,p8))+' м, '+
+     id(p1)+'–'+id(p5)+' = '+f2(d(p1,p5))+' м, '+id(p4)+'–'+id(p8)+' = '+f2(d(p4,p8))+' м; діагоналі '+id(p1)+'–'+id(p8)+' і '+id(p4)+'–'+id(p5)+' обидві <b>'+f2(d(p1,p8))+' м</b>. Якщо діагоналі різні — підсунь 4 і 8 (або 5 і 8), поки не зрівняються.</li>'+
+   '<li>Натягни шнур між арматурою <b>'+p1.id+'→'+p4.id+'</b> (передній ряд) і <b>'+p5.id+'→'+p8.id+'</b> (задній ряд). Шнури паралельні й ідуть точно схід–захід.</li>'+
+   '<li>По шнуру від '+id(p1)+' відміряй <b>2,70</b> → '+id(g(2))+', <b>5,40</b> → '+id(g(3))+'; так само від '+id(p5)+': 2,70 → '+id(g(6))+', 5,40 → '+id(g(7))+'. Кінець 8,10 має влучити в '+id(p4)+' / '+id(p8)+'.</li>'+
+   '<li>Кожен стіл — свої два шнури: ряди сусідніх столів <b>не</b> на одній лінії (столи зсунуті вздовж А–Г).</li>'+
+   '</ol></div>';
+}
+
 function openPiles(i){
   PS.i=(i+state.tables.length)%state.tables.length;
   var rows=pileRows(PS.i), t=state.tables[PS.i];
@@ -933,12 +951,12 @@ function openPiles(i){
   svg+='<text x="'+((X(4.093)+X(1.393))/2)+'" y="'+(Yv(0.844)+24)+'" text-anchor="middle" font-size="11" fill="#cbd3df">2,70</text>';
   svg+='<text x="'+(X(4.093)-26)+'" y="'+((Yv(0.844)+Yv(3.444))/2+4)+'" font-size="11" fill="#cbd3df">2,60</text>';
   svg+='</svg>';
-  var tb='<table><tr><th>№</th><th>паля</th><th class="n">X від А, м</th><th class="n">Y від А–Г, м</th><th class="n">широта</th><th class="n">довгота</th></tr>';
-  rows.forEach(function(p){ tb+='<tr><td class="id">'+p.id+'</td><td>'+p.name+'</td><td class="n">'+f2(p.X)+'</td><td class="n">'+f2(p.Y)+'</td><td class="n">'+p.lat.toFixed(7)+'</td><td class="n">'+p.lon.toFixed(7)+'</td></tr>'; });
+  var tb='<table><tr><th>№</th><th>паля</th><th class="n">X від А, м</th><th class="n">Y від А–Г, м</th></tr>';
+  rows.forEach(function(p){ tb+='<tr><td class="id">'+p.id+'</td><td>'+p.name+'</td><td class="n">'+f2(p.X)+'</td><td class="n">'+f2(p.Y)+'</td></tr>'; });
   tb+='</table><div class="pcards">';
   rows.forEach(function(p){ tb+='<div class="pcard"><div class="h"><b>'+p.id+'</b><span>'+p.name+'</span></div>'+
     '<div class="xy"><div>'+f2(p.X)+'<small>X від А вздовж шнура, м</small></div><div>'+f2(p.Y)+'<small>Y від шнура до хати, м</small></div></div>'+
-    '<div class="gps">GPS '+p.lat.toFixed(7)+', '+p.lon.toFixed(7)+' · <a href="https://maps.google.com/?q='+p.lat.toFixed(7)+','+p.lon.toFixed(7)+'" target="_blank" rel="noopener">на карті</a></div></div>'; });
+    '</div>'; });
   tb+='</div>';
   var onLine=rows.filter(function(p){return Math.abs(p.Y)<0.05;}).map(function(p){return p.id;});
   document.getElementById("psbody").innerHTML=svg+
@@ -946,7 +964,8 @@ function openPiles(i){
     'Номер на карті <b>'+(PS.i+1)+'.N</b> = стіл '+(PS.i+1)+', паля N.</div>'+tb+
     '<div class="hint" style="margin-top:10px"><b>Як виносити:</b> X — рулеткою від точки А вздовж шнура А→Г (мінус — за А, у бік північно-східного кінця); '+
     'Y — під прямим кутом від шнура в бік хати (кут — трикутником 3-4-5 м).'+(onLine.length?' Паля <b>'+onLine.join(", ")+'</b> стоїть рівно на шнурі А–Г.':'')+
-    '<br><b>Перевірка:</b> уздовж ряду 2,70 м між палями, між рядами 2,60 м, діагональ прямокутника з 4 паль 3,748 м (як у кресленні). GPS телефона помиляється на 2–3 м — рулетка точніша.</div>';
+    '<br><b>Перевірка:</b> уздовж ряду 2,70 м між палями, між рядами 2,60 м, діагональ прямокутника з 4 паль 3,748 м (як у кресленні).</div>'+
+    stringMethod(rows);
   document.getElementById("pilesheet").hidden=false;
   var mob=innerWidth<=760;
   map.flyToBounds(LLs(tableFoot(t)),mob?{paddingTopLeft:[30,70],paddingBottomRight:[30,Math.round(innerHeight*0.64)],maxZoom:21,duration:0.5}:{padding:[60,60],maxZoom:21,duration:0.5});
