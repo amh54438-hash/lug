@@ -56,7 +56,7 @@
   <div id="map"></div>
   <aside>
     <h1>Сонце на городі</h1>
-    <div class="sub"><a href="./" style="color:var(--sun)">← 3D-модель</a> · Ділянка 9,14 сотки · 48,5785° пн. ш. · 3 столи НСФЗ-М5К2×8, 16 ФЕМ Longi 625 Вт, нахил 30°</div>
+    <div class="sub"><a href="./" style="color:var(--sun)">← 3D-модель</a> · Ділянка 9,14 сотки · 48,5785° пн. ш. · 3 столи НСФЗ-М5К2×8, 16 ФЕМ Longi LR7 625 Вт, двосторонні, нахил 30°</div>
 
     <h2>Режим кліку по карті</h2>
     <div class="row">
@@ -314,8 +314,8 @@ function skyView(t,trees,tables){
   return tot>0 ? open/tot : 1;
 }
 function simulate(tables,trees,attr,lossRaster){
-  var per=[],unsh=[],strict=[],real=[],monthly=new Array(13).fill(0),worst={};
-  tables.forEach(function(){per.push(0);unsh.push(0);strict.push(0);real.push(0);});
+  var per=[],unsh=[],strict=[],real=[],rear=[],monthly=new Array(13).fill(0),worst={};
+  tables.forEach(function(){per.push(0);unsh.push(0);strict.push(0);real.push(0);rear.push(0);});
   var S=tables.map(tableSamples);
   var SVF=tables.map(function(t){ return skyView(t,trees,tables); });
   for(var w=0;w<WX.length;w++){
@@ -375,11 +375,17 @@ function simulate(tables,trees,attr,lossRaster){
         Er=PDC*(tot/1000)*best*der/1000*days*KCAL;
       }
       real[i]+=Er;
+      /* задня сторона двосторонніх панелей: небо ззаду + відбите від землі (земля під столом здебільшого в тіні) */
+      if(BIF.on){
+        var cb=Math.cos(TILT*Math.PI/180), alb=(mo===12||mo===1||mo===2)?BIF.albW:BIF.alb;
+        var gR=dhi*(1-cb)/2 + alb*(ghi*BIF.fsun + dhi*(1-BIF.fsun)*0.4)*(1+cb)/2;
+        rear[i]+=PDC*(gR/1000)*BIF.phi*(1-BIF.struct)*der/1000*days*KCAL;
+      }
       per[i]+=E; strict[i]+=Es; unsh[i]+=Ef; monthly[mo]+=E;
       if(Ef-E>1){ var key=mo+"|"+hh; worst[key]=(worst[key]||0)+(Ef-E); }
     }
   }
-  return {per:per,unsh:unsh,strict:strict,real:real,monthly:monthly,worst:worst};
+  return {per:per,unsh:unsh,strict:strict,real:real,rear:rear,monthly:monthly,worst:worst};
 }
 
 
@@ -452,6 +458,8 @@ function hitsBuilding(p,d,b){
 
 /* ---------------- виміряний обрій (з фото 28.09.2026) ---------------- */
 var HOR={on:true, mode:"pts"};
+/* двосторонні LR7: двосторонність 0,80; альбедо ґрунту 0,16 (рілля/трава), взимку 0,35; частка освітленої землі, яку бачить зворот, 0,15; 10% — тінь каркаса */
+var BIF={on:true, phi:0.80, alb:0.16, albW:0.35, fsun:0.15, struct:0.10};   /* дає ~5,8% — верх типового діапазону 4–6% для низьких наземних столів */
 function horizonAt(az){
   if(typeof HORIZ==="undefined") return 0;
   var a=((az%360)+360)%360, i=a/5, i0=Math.floor(i)%72, i1=(i0+1)%72, t=i-Math.floor(i);
@@ -1293,6 +1301,8 @@ function report(res){
       Math.round(st).toLocaleString("uk-UA")+'</b> кВт·год</div>':'')+
     (res.real?'<div class="hint">реалістично для LR7 (half-cut, 3 діоди, половини паралельно, інвертор сам обирає режим): <b style="color:var(--ink)">'+
       Math.round(res.real.reduce(function(a,b){return a+b;},0)).toLocaleString("uk-UA")+'</b> кВт·год/рік — на цю цифру й орієнтуйся</div>':'')+
+    (res.rear&&BIF.on?'<div class="hint">+ задня сторона двосторонніх панелей ≈ <b>'+Math.round(res.rear.reduce(function(a,b){return a+b;},0)).toLocaleString("uk-UA")+
+      '</b> кВт·год/рік → разом <b style="color:var(--ink)">'+Math.round(res.real.reduce(function(a,b){return a+b;},0)+res.rear.reduce(function(a,b){return a+b;},0)).toLocaleString("uk-UA")+'</b></div>':'')+
     '<table><tr><th>Стіл</th><th class="n">кВт·год/рік</th><th class="n">тінь</th><th class="n">видно неба</th></tr>';
   res.per.forEach(function(v,i){
     html+='<tr><td>'+(i+1)+'</td><td class="n">'+Math.round(v).toLocaleString("uk-UA")+
