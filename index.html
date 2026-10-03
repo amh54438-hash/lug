@@ -72,7 +72,7 @@
 <button id="burger" aria-expanded="true" aria-controls="ui">✕</button>
 <div id="ui">
   <h1>Город у 3D</h1>
-  <div class="sub">Ділянка 9,14 сотки · рельєф Copernicus, крони Meta CHM, будівлі Microsoft ML, висоти уточнені по фото 28.09 · помаранчева лінія — траншея DC-кабелю, зелені конуси — штирі заземлення, жовтий блок — ввід/інвертор, сірий пунктир — відгалуження до 4-го стола, світлі стояки — закладні Ø32, зелені лінії — перемички по палях</div>
+  <div class="sub">Ділянка 9,14 сотки · рельєф Copernicus, крони Meta CHM, будівлі Microsoft ML, висоти уточнені по фото 28.09 · помаранчева лінія — траншея DC-кабелю (магістраль перед рядом і відгалуження між палями 2–3), жовтий блок — ввід/інвертор, світлі стояки — вихід кабелю з землі, зелені лінії — перемички по палях. Кнопка «план» — вигляд строго згори без перспективи, як на кресленні.</div>
   <label>Дата: <b id="dl" class="val"></b></label>
   <input type="range" id="doy" min="1" max="365" value="172">
   <input type="date" id="dpick" min="2026-01-01" max="2026-12-31" value="2026-06-21">
@@ -83,7 +83,7 @@
     <button id="play">▶ день</button>
   </div>
   <div class="row">
-    <button data-v="top">згори</button><button data-v="south">з півдня</button>
+    <button data-v="plan">план</button><button data-v="top">згори</button><button data-v="south">з півдня</button>
     <button data-v="eye">з городу</button><button data-v="iso">збоку</button>
   </div>
   <div class="row"><button data-ph="apple">яблуня: є</button><button data-ph="acacia">акації: є</button><button data-ph="easthouse">дерева біля хати: є</button><button data-ph="westG">дерева за Г: є</button></div>
@@ -468,11 +468,16 @@ addEventListener("mousemove",function(e){
 });
 renderer.domElement.addEventListener("contextmenu",function(e){ e.preventDefault(); });
 renderer.domElement.addEventListener("wheel",function(e){
-  e.preventDefault(); sph.r=Math.max(12,Math.min(400, sph.r*(1+e.deltaY*0.0012))); place(); render();
+  e.preventDefault(); sph.r=Math.max(camera.fov<10?200:12,Math.min(camera.fov<10?4000:400, sph.r*(1+e.deltaY*0.0012))); place(); render();
 },{passive:false});
 document.querySelectorAll("[data-v]").forEach(function(b){
   b.onclick=function(){
     var v=this.dataset.v;
+    var fov=(v==="plan")?8:48; if(camera.fov!==fov){ camera.fov=fov; camera.far=(v==="plan")?6000:2000; camera.updateProjectionMatrix(); }
+    if(!window.FOG0) window.FOG0=scene.fog; scene.fog=(v==="plan")?null:window.FOG0;
+    if(v==="plan"){ sph={r:330,theta:0,phi:0.002}; target.set(-2,0,-28); }
+    /* підписи мають сталий екранний розмір — при вузькому куті огляду їх треба зменшити пропорційно */
+    scene.traverse(function(o){ if(o.isSprite){ if(!o.userData.s0) o.userData.s0=o.scale.clone(); o.scale.copy(o.userData.s0).multiplyScalar(Math.tan(fov*Math.PI/360)/Math.tan(48*Math.PI/360)); } });
     if(v==="top"){ sph={r:150,theta:0,phi:0.06}; target.set(0,0,-22); }
     if(v==="south"){ sph={r:70,theta:0,phi:Math.PI*0.36}; target.set(4,2,-26); }
     if(v==="eye"){ sph={r:26,theta:Math.PI*0.05,phi:Math.PI*0.47}; target.set(3,2,-27); }
@@ -517,7 +522,7 @@ renderer.domElement.addEventListener("touchstart",function(e){
 renderer.domElement.addEventListener("touchmove",function(e){
   if(!touch) return;
   if(e.touches.length===2 && touch.d){
-    var nd=tdist(e); sph.r=Math.max(12,Math.min(400, sph.r*touch.d/nd)); touch.d=nd;
+    var nd=tdist(e); sph.r=Math.max(camera.fov<10?200:12,Math.min(camera.fov<10?4000:400, sph.r*touch.d/nd)); touch.d=nd;
   } else if(e.touches.length===1){
     var dx=e.touches[0].clientX-touch.x, dy=e.touches[0].clientY-touch.y;
     touch.x=e.touches[0].clientX; touch.y=e.touches[0].clientY;
