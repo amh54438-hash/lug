@@ -56,6 +56,7 @@
   #scheme button{margin-top:10px}
   #hint{position:absolute;right:12px;bottom:12px;color:var(--dim);font-size:11.5px;
     background:rgba(22,27,36,.8);padding:6px 10px;border-radius:8px}
+  #ui button.on{background:#f5c518;color:#1a1405;border-color:#f5c518;font-weight:600}
   .lays{margin:8px 0;font-size:12.5px} .lays b{display:block;margin-bottom:3px;font-weight:600}
   .lays label{display:flex;gap:6px;align-items:center;margin:2px 0;cursor:pointer}
 </style>
@@ -85,8 +86,12 @@
     <button data-v="top">згори</button><button data-v="south">з півдня</button>
     <button data-v="eye">з городу</button><button data-v="iso">збоку</button>
   </div>
-  <div class="row"><button data-ph="apple">яблуня: є</button><button data-ph="acacia">акації: є</button><button data-ph="easthouse">дерева біля хати: є</button></div>
-  <div class="sub" style="margin:2px 0 8px">Знайдено на фото 02–03.10: яблуня біля східного кута (~8,5 м), акації за кухнею праворуч від будівлі (~19 м), високі дерева ліворуч від хати (~17 м на пагорбі). Натисни, щоб побачити тіні без них. Кожне коштує ~450–510 кВт·год/рік (≈2–2,3 тис. ₴), усі разом ~1 400 (≈6,4 тис. ₴/рік).</div>
+  <div class="row"><button data-ph="apple">яблуня: є</button><button data-ph="acacia">акації: є</button><button data-ph="easthouse">дерева біля хати: є</button><button data-ph="westG">дерева за Г: є</button></div>
+  <div class="sub" style="margin:2px 0 8px">Знайдено на фото 02–03.10: яблуня біля східного кута (~8,5 м), акації за кухнею праворуч від будівлі (~19 м), високі дерева ліворуч від хати (~17 м на пагорбі), дерева за Г біля схилу (~12 м). Натисни, щоб побачити тіні без них. Кожне коштує ~450–510 кВт·год/рік (≈2–2,3 тис. ₴), усі разом ~1 400 (≈6,4 тис. ₴/рік).</div>
+  <div class="lays"><b>Розстановка столів</b>
+    <div class="row" style="margin:3px 0"><button data-lo="v4">план v4</button><button data-lo="opt">оптимальна</button></div>
+    <div class="sub" id="lotxt" style="margin:0 0 8px"></div>
+  </div>
   <div class="lays"><b>Показати на сцені</b>
     <label><input type="checkbox" data-lay="tables" checked> столи й ніжки</label>
     <label><input type="checkbox" data-lay="rect" checked> прямокутник АБВГ</label>
@@ -136,7 +141,10 @@ function canopy(x,y){
   return CN.h[j*CN.nx+i];
 }
 var PLOT=[[12.46, 45.29], [26.4, 32.2], [-15.3, -4.7], [-23.5, 10.1], [-15.12, 26.04]];   /* 03.10: бік річки = початок схилу, 1,30 м за А–Г */
-var TABLES=[{x:8.12,y:34.43},{x:-0.12,y:28.68},{x:-8.35,y:22.93}];   /* план v4, 03.10.2026 */
+var LAYOUTS={
+  v4:{name:"план v4", t:[{x:8.12,y:34.43},{x:-0.12,y:28.68},{x:-8.35,y:22.93}], kwh:"30 680 кВт·год/рік (з тінню ланцюга 27 690)"},
+  opt:{name:"оптимальна", t:[{"x": 9.47, "y": 35.37}, {"x": -0.78, "y": 28.21}, {"x": -7.67, "y": 19.74}], kwh:"30 920 кВт·год/рік (з тінню ланцюга 29 050)"}};
+var TABLES=LAYOUTS.v4.t.slice();   /* план v4, 03.10.2026; оптимальна — за 8 точками фото, 03.10.2026 */
 var RECT=[[10.23,42.14],[15.95,33.94],[-8.65,16.77],[-14.37,24.97]];   /* А Б В Г */
 var T4={x:-15.5,y:8};   /* резерв 4-го стола (у продовження ряду v4 не влазить у межу) */
 var BLD=[{x:14.8,y:2.8,w:11.8,l:12.5,az:149,h:8,c:0xb9a48c},
@@ -262,7 +270,8 @@ function grab(name,n0){ var g=new THREE.Group(), kids=scene.children.slice(n0);
   kids.forEach(function(k){ scene.remove(k); g.add(k); }); scene.add(g); LAY[name]=g; }
 var PHOTO=[{id:"apple",parts:[[22.28, 32.74]],r:4,h:8.5,round:true},
            {id:"acacia",parts:[[-20.62, -12.46], [-17.82, -13.66], [-15.12, -14.86], [-12.32, -16.06]],r:2.8,h:19,leafy:true},
-           {id:"easthouse",parts:[[24.98, 1.64], [31.28, -1.96], [37.58, -5.56]],r:4.5,h:17,leafy:true}];
+           {id:"easthouse",parts:[[24.98, 1.64], [31.28, -1.96], [37.58, -5.56]],r:4.5,h:17,leafy:true},
+           {id:"westG",parts:[[-28.5, 10.5], [-31.5, 13.0], [-34.5, 15.5]],r:3.2,h:12,leafy:true}];
 var phObj={};
 PHOTO.forEach(function(t){
   var grp=new THREE.Group();
@@ -321,14 +330,15 @@ function buildTable(t, ghost){
   return g;
 }
 var n0=scene.children.length;
-TABLES.forEach(function(t){ buildTable(t,false); });
-grab("tables",n0); n0=scene.children.length;
+function buildTables(){ var m=scene.children.length; TABLES.forEach(function(t){ buildTable(t,false); }); grab("tables",m); }
+buildTables(); n0=scene.children.length;
 buildTable(T4,true);
 grab("t4",n0);
 
 
 n0=scene.children.length;
 /* ---------- траса кабелю і заземлення ---------- */
+function buildRoute(){ var m=scene.children.length;
 (function(){
   var order=TABLES.map(function(t,i){return {i:i,t:t};}).sort(function(a,b){return Math.hypot(b.t.x,b.t.y)-Math.hypot(a.t.x,a.t.y);});
   var nodes=order.map(function(o){ return {w:[o.t.x-4.007,o.t.y+0.844], e:[o.t.x+4.093,o.t.y+0.844]}; });
@@ -364,7 +374,8 @@ n0=scene.children.length;
   var inv=new THREE.Mesh(new THREE.BoxGeometry(0.5,0.7,0.25), new THREE.MeshStandardMaterial({color:0xf5c518}));
   inv.position.set(0, ground(0,0)+1.2, 0); scene.add(inv);
 })();
-grab("route",n0);
+grab("route",m); }
+buildRoute();
 
 n0=scene.children.length;
 /* прямокутник АБВГ плану v4; синім — лінія А–Г (вісь задніх ніжок) */
@@ -379,7 +390,7 @@ grab("rect",n0);
 /* точки фото-зйомки 02–03.10 (камера на 0,65 м) */
 n0=scene.children.length;
 (function(){
-  var P=[["(0;0)", 10.23, 42.14, true], ["(10;0)", 2.03, 36.42, true], ["(20;0)", -6.17, 30.69, true], ["(30;0)", -14.37, 24.97, false], ["(0;10)", 15.95, 33.94, true], ["(10;10)", 7.75, 28.22, true], ["(20;10)", -0.45, 22.49, true], ["(30;10)", -8.65, 16.77, true]];   /* [назва, x, y, чи є фото] — вузли сітки плану v4 */
+  var P=[["(0;0)", 10.23, 42.14, true], ["(10;0)", 2.03, 36.42, true], ["(20;0)", -6.17, 30.69, true], ["(30;0)", -14.37, 24.97, true], ["(0;10)", 15.95, 33.94, true], ["(10;10)", 7.75, 28.22, true], ["(20;10)", -0.45, 22.49, true], ["(30;10)", -8.65, 16.77, true]];   /* [назва, x, y, чи є фото] — вузли сітки плану v4 */
   var pm=new THREE.MeshStandardMaterial({color:0xf5c518, roughness:0.5, emissive:0x3a2c00});
   var pg=new THREE.MeshStandardMaterial({color:0x9aa3ad, roughness:0.5});
   P.forEach(function(q){
@@ -519,6 +530,20 @@ renderer.domElement.addEventListener("touchmove",function(e){
 renderer.domElement.addEventListener("touchend",function(){ touch=null; });
 
 function render(){ renderer.render(scene,camera); }
+function setLayout(k){
+  var L0=LAYOUTS[k]; if(!L0) return;
+  TABLES.length=0; L0.t.forEach(function(t){ TABLES.push({x:t.x,y:t.y}); });
+  ["tables","route"].forEach(function(n){ if(LAY[n]) scene.remove(LAY[n]); });
+  buildTables(); buildRoute();
+  document.querySelectorAll("[data-lay]").forEach(function(c){ var g=LAY[c.dataset.lay]; if(g) g.visible=c.checked; });
+  document.querySelectorAll("[data-lo]").forEach(function(b){ b.classList.toggle("on",b.dataset.lo===k); });
+  document.getElementById("lotxt").innerHTML=(k==="opt"
+    ? "Підібрано за обрієм з усіх 8 точок фото: перший стіл на 1,65 м ближче до А, проміжки 12,5 і 10,5 м, крайній стіл біля Г на 3 м углиб (від дерев за Г). "
+    : "Ваш план v4: задні ніжки всіх столів на лінії А–Г, крок 10 м. ")+"<b>"+L0.kwh+"</b>";
+  try{ localStorage.setItem("lug.layout",k); }catch(e){}
+  render();
+}
+document.querySelectorAll("[data-lo]").forEach(function(b){ b.onclick=function(){ setLayout(b.dataset.lo); }; });
 document.querySelectorAll("[data-lay]").forEach(function(c){
   var key="lug.lay."+c.dataset.lay;
   try{ var v=localStorage.getItem(key); if(v!==null) c.checked=(v==="1"); }catch(e){}
@@ -526,10 +551,11 @@ document.querySelectorAll("[data-lay]").forEach(function(c){
   apply();
   c.onchange=function(){ apply(); try{ localStorage.setItem(key,c.checked?"1":"0"); }catch(e){} render(); };
 });
+(function(){ var k="v4"; try{ k=localStorage.getItem("lug.layout")||"v4"; }catch(e){} var q=new URLSearchParams(location.search); if(q.has("layout")) k=q.get("layout"); setLayout(k); })();
 document.querySelectorAll("[data-ph]").forEach(function(b){
   b.onclick=function(){
     var g=phObj[b.dataset.ph]; if(!g) return; g.visible=!g.visible;
-    b.textContent=({apple:"яблуня: ",acacia:"акації: ",easthouse:"дерева біля хати: "})[b.dataset.ph]+(g.visible?"є":"зрізано");
+    b.textContent=({apple:"яблуня: ",acacia:"акації: ",easthouse:"дерева біля хати: ",westG:"дерева за Г: "})[b.dataset.ph]+(g.visible?"є":"зрізано");
     b.style.opacity=g.visible?1:0.6; render();
   };
 });
