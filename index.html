@@ -83,8 +83,8 @@
     <button data-v="top">згори</button><button data-v="south">з півдня</button>
     <button data-v="eye">з городу</button><button data-v="iso">збоку</button>
   </div>
-  <div class="row"><button data-ph="apple">яблуня: є</button><button data-ph="acacia">акації: є</button></div>
-  <div class="sub" style="margin:2px 0 8px">Яблуня біля східного кута (~8,5 м) і акації за кухнею, праворуч від будівлі (~19 м), знайдені на фото 02–03.10. Натисни, щоб побачити тіні без них. Без яблуні +420 кВт·год/рік, без акацій +440 (≈1,9 і 2,0 тис. ₴/рік); вкоротити яблуню до 4,5 м чи акації до 10 м дає майже стільки ж.</div>
+  <div class="row"><button data-ph="apple">яблуня: є</button><button data-ph="acacia">акації: є</button><button data-ph="easthouse">дерева біля хати: є</button></div>
+  <div class="sub" style="margin:2px 0 8px">Знайдено на фото 02–03.10: яблуня біля східного кута (~8,5 м), акації за кухнею праворуч від будівлі (~19 м), високі дерева ліворуч від хати (~17 м на пагорбі). Натисни, щоб побачити тіні без них. Кожне коштує ~450–510 кВт·год/рік (≈2–2,3 тис. ₴), усі разом ~1 400 (≈6,4 тис. ₴/рік).</div>
   <div class="row"><button id="schemebtn">схема кабелю і заземлення</button></div>
 </div>
 <div id="bar"><button id="play2" aria-label="Запустити день">▶</button><span id="tl2" class="val"></span><a id="ar" rel="ar" href="model.usdz">AR</a></div>
@@ -237,7 +237,8 @@ scene.add(tr); scene.add(cr);
 
 /* ---------- дерева, знайдені на фото 02–03.10.2026 (сітка точок з висоти 65 см) ---------- */
 var PHOTO=[{id:"apple",parts:[[25,32.5]],r:4,h:8.5,round:true},
-           {id:"acacia",parts:[[-17.9, -12.7], [-15.1, -13.9], [-12.4, -15.1], [-9.6, -16.3]],r:2.8,h:19,leafy:true}];
+           {id:"acacia",parts:[[-17.9, -12.7], [-15.1, -13.9], [-12.4, -15.1], [-9.6, -16.3]],r:2.8,h:19,leafy:true},
+           {id:"easthouse",parts:[[27.7, 1.4], [34.0, -2.2], [40.3, -5.8]],r:4.5,h:17,leafy:true}];
 var phObj={};
 PHOTO.forEach(function(t){
   var grp=new THREE.Group();
@@ -464,7 +465,7 @@ function render(){ renderer.render(scene,camera); }
 document.querySelectorAll("[data-ph]").forEach(function(b){
   b.onclick=function(){
     var g=phObj[b.dataset.ph]; if(!g) return; g.visible=!g.visible;
-    b.textContent=(b.dataset.ph==="apple"?"яблуня: ":"акації: ")+(g.visible?"є":"зрізано");
+    b.textContent=({apple:"яблуня: ",acacia:"акації: ",easthouse:"дерева біля хати: "})[b.dataset.ph]+(g.visible?"є":"зрізано");
     b.style.opacity=g.visible?1:0.6; render();
   };
 });
