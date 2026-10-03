@@ -885,6 +885,23 @@ function drawPlan(){
       html:'<div style="transform:translate(-50%,-130%);white-space:nowrap;font:600 12px -apple-system,sans-serif;color:#ffcf8a;text-shadow:0 0 3px #000,0 0 3px #000">'+PLAN_V4.names[i]+'</div>'})}).addTo(gPlan);
     L.circleMarker(toLL(p[0],p[1]),{radius:4,color:"#ff9f43",weight:2,fillColor:"#10131a",fillOpacity:1,interactive:false}).addTo(gPlan);
   });
+  /* осі X / Y від точки А: X уздовж А→Г, Y від А–Г до хати; поділки через 5 м */
+  (function(){
+    var A0=PLAN_V4.rect[0], G0=PLAN_V4.rect[3], B0=PLAN_V4.rect[1];
+    var ux=[(G0[0]-A0[0])/30,(G0[1]-A0[1])/30], uy=[(B0[0]-A0[0])/10,(B0[1]-A0[1])/10];
+    function P(X,Y){ return toLL(A0[0]+X*ux[0]+Y*uy[0], A0[1]+X*ux[1]+Y*uy[1]); }
+    function lab(ll,txt,col,big){ L.marker(ll,{interactive:false,icon:L.divIcon({className:"",iconSize:[0,0],
+      html:'<div style="transform:translate(-50%,-50%);white-space:nowrap;font:'+(big?'800 15px':'600 11px')+' -apple-system,sans-serif;color:'+col+';text-shadow:0 0 3px #000,0 0 3px #000,0 0 2px #000">'+txt+'</div>'})}).addTo(gPlan); }
+    var cx="#ff5ec4", cy="#5ef0ff";
+    L.polyline([P(-2,-2.2),P(36,-2.2)],{color:cx,weight:3,opacity:.95,interactive:false}).addTo(gPlan);
+    L.polyline([P(35,-3.0),P(36.2,-2.2),P(35,-1.4)],{color:cx,weight:3,interactive:false}).addTo(gPlan);
+    for(var x=0;x<=35;x+=5){ L.polyline([P(x,-2.7),P(x,-1.7)],{color:cx,weight:2,interactive:false}).addTo(gPlan); lab(P(x,-3.6),String(x),cx,false); }
+    lab(P(37.6,-2.2),"X →",cx,true);
+    L.polyline([P(-2.2,-2),P(-2.2,16)],{color:cy,weight:3,opacity:.95,interactive:false}).addTo(gPlan);
+    L.polyline([P(-3.0,15),P(-2.2,16.2),P(-1.4,15)],{color:cy,weight:3,interactive:false}).addTo(gPlan);
+    for(var y=0;y<=15;y+=5){ L.polyline([P(-2.7,y),P(-1.7,y)],{color:cy,weight:2,interactive:false}).addTo(gPlan); lab(P(-3.8,y),String(y),cy,false); }
+    lab(P(-2.2,17.6),"Y ↓ до хати",cy,true);
+  })();
   /* палі — саме тих столів, що зараз стоять (не з креслення v4) */
   state.tables.forEach(function(t,ti){ pileRows(ti).forEach(function(p){
     L.circle(toLL(p.x,p.y),{radius:0.15,color:"#e7ecf3",weight:1,fillColor:"#555",fillOpacity:1,interactive:false}).addTo(gPlan);
@@ -950,6 +967,14 @@ function openPiles(i){
   svg+='<text x="6" y="'+(H/2)+'" font-size="12" fill="#98a3b4">зах.</text><text x="'+(W-30)+'" y="'+(H/2)+'" font-size="12" fill="#98a3b4">сх.</text>';
   svg+='<text x="'+((X(4.093)+X(1.393))/2)+'" y="'+(Yv(0.844)+24)+'" text-anchor="middle" font-size="11" fill="#cbd3df">2,70</text>';
   svg+='<text x="'+(X(4.093)-26)+'" y="'+((Yv(0.844)+Yv(3.444))/2+4)+'" font-size="11" fill="#cbd3df">2,60</text>';
+  (function(){ var cx0=W-62, cy0=34, Lr=26, ax=235*Math.PI/180, ay=145*Math.PI/180;
+    function arr(a,col,t){ var x2=cx0+Lr*Math.sin(a), y2=cy0-Lr*Math.cos(a);
+      var hx=Math.sin(a), hy=-Math.cos(a), px=-hy, py=hx;
+      return '<line x1="'+cx0+'" y1="'+cy0+'" x2="'+x2+'" y2="'+y2+'" stroke="'+col+'" stroke-width="2.5"/>'+
+        '<polygon points="'+(x2+hx*6)+','+(y2+hy*6)+' '+(x2+px*4)+','+(y2+py*4)+' '+(x2-px*4)+','+(y2-py*4)+'" fill="'+col+'"/>'+
+        '<text x="'+(x2+hx*14)+'" y="'+(y2+hy*14+4)+'" text-anchor="middle" font-size="13" font-weight="800" fill="'+col+'">'+t+'</text>'; }
+    svg+='<circle cx="'+cx0+'" cy="'+cy0+'" r="3" fill="#e7ecf3"/>'+arr(ax,"#ff5ec4","X")+arr(ay,"#5ef0ff","Y")+
+      '<text x="'+cx0+'" y="'+(cy0-8)+'" text-anchor="middle" font-size="9" fill="#98a3b4">А</text>'; })();
   svg+='</svg>';
   var tb='<table><tr><th>№</th><th>паля</th><th class="n">X від А, м</th><th class="n">Y від А–Г, м</th></tr>';
   rows.forEach(function(p){ tb+='<tr><td class="id">'+p.id+'</td><td>'+p.name+'</td><td class="n">'+f2(p.X)+'</td><td class="n">'+f2(p.Y)+'</td></tr>'; });
@@ -960,7 +985,7 @@ function openPiles(i){
   tb+='</div>';
   var onLine=rows.filter(function(p){return Math.abs(p.Y)<0.05;}).map(function(p){return p.id;});
   document.getElementById("psbody").innerHTML=svg+
-    '<div class="hint" style="margin:8px 0">Схема як на карті: північ угорі, схід праворуч. Нумерація: <b>1–4</b> — передній ряд (південний), <b>5–8</b> — задній, обидва зі сходу на захід. '+
+    '<div class="hint" style="margin:8px 0">Схема як на карті: північ угорі, схід праворуч. Стрілки в куті: <b style="color:#ff5ec4">X</b> — уздовж шнура від А до Г (на південний захід), <b style="color:#5ef0ff">Y</b> — від шнура до хати (на південний схід). Нумерація: <b>1–4</b> — передній ряд (південний), <b>5–8</b> — задній, обидва зі сходу на захід. '+
     'Номер на карті <b>'+(PS.i+1)+'.N</b> = стіл '+(PS.i+1)+', паля N.</div>'+tb+
     '<div class="hint" style="margin-top:10px"><b>Як виносити:</b> X — рулеткою від точки А вздовж шнура А→Г (мінус — за А, у бік північно-східного кінця); '+
     'Y — під прямим кутом від шнура в бік хати (кут — трикутником 3-4-5 м).'+(onLine.length?' Паля <b>'+onLine.join(", ")+'</b> стоїть рівно на шнурі А–Г.':'')+
