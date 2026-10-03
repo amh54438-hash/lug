@@ -797,6 +797,7 @@ function phImpact(){
      'За 25 років помнож на ~22 (з деградацією панелей).</div>';
   document.getElementById("phout").innerHTML=h;
 }
+var SHOW_PH_TREES=false;
 function drawPh(){
   if(!window.gPh) return; gPh.clearLayers();
   if(typeof HPTS!=="undefined") HPTS.forEach(function(pt){
@@ -804,7 +805,7 @@ function drawPh(){
      .bindPopup('<b>Точка зйомки '+pt.id+'</b><br>знято '+(pt.n*5)+'° обрію з 360°, камера на 0,65 м'+
        (pt.img?'<br><a href="'+pt.img+'" target="_blank" rel="noopener">панорама з лінією обрію</a>':''));
   });
-  if(HOR.mode!=="pts") return;
+  if(HOR.mode!=="pts" || !SHOW_PH_TREES) return;   /* дерева з фото на карті не малюємо — їх видно в 3D; у розрахунку вони є */
   PHT.forEach(function(t){
     var col=t.cut?"#6b7280":(t.kind==="extra"?"#e0a24f":"#ff7a59");
     (t.parts||[[t.x,t.y]]).forEach(function(p){
