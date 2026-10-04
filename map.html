@@ -218,13 +218,14 @@ var DEF_TREES=[
 var PLAN_V4={"rect": [[10.226, 42.143], [15.95, 33.944], [-8.648, 16.77], [-14.372, 24.969]], "names": ["А (0;0)", "Б (0;10)", "В (30;10)", "Г (30;0)"], "tables": [{"x": 8.12, "y": 34.43, "az": 180}, {"x": -0.12, "y": 28.68, "az": 180}, {"x": -8.35, "y": 22.93, "az": 180}], "piles": [[4.11, 35.28], [6.81, 35.27], [6.82, 37.87], [9.51, 35.27], [9.52, 37.87], [12.21, 35.27], [12.21, 37.86], [-4.12, 29.53], [-1.42, 29.53], [-1.42, 32.12], [1.28, 29.52], [1.28, 32.12], [3.98, 29.52], [3.98, 32.12], [-12.35, 23.78], [-9.65, 23.78], [-9.65, 26.38], [-6.95, 23.77], [-6.95, 26.38], [-4.25, 23.77], [-4.25, 26.37], [4.12, 37.88], [-4.12, 32.13], [-12.35, 26.38]]};
 /* Ряд (03.10.2026): усі задні ніжки на лінії А–Г, однаковий крок 12,5 м від X=4 м; між столами з півдня на північ прохід 1,03 м.
    Реалістично 29 890 кВт·год/рік (байпас 30 696, жорсткий 28 801) проти v4 29 585. */
-var PLAN_OPT=[{x:8.24,y:34.51,az:180},{x:-1.98,y:27.38,az:180},{x:-12.2,y:20.24,az:180}];   /* 03.10.2026: ряд зсунуто на 2 м до Г (X = 6 / 18,5 / 31 м) — ширший прохід біля яблуні, 31 710 кВт·год/рік */
+var PLAN_OPT=[{x:8.24,y:34.51,az:180},{x:-2.06,y:27.32,az:180},{x:-12.36,y:20.13,az:180}];   /* 04.10.2026: ряд X = 6 / 18,56 / 31,12 м, крок 12,56 — 1,00 м між ПРОГОНАМИ (9,30 м) сусідніх столів; 31 695 кВт·год/рік */
 /* Вільна розстановка (столи врозкид, теж без перекриття з півдня): 30 242 — максимум для цієї ділянки без зрізання. */
 var PLAN_FREE=[{x:10.13,y:27.44,az:180},{x:-0.03,y:28.88,az:180},{x:-10.12,y:20.62,az:180}];
 var DEF_TABLES=JSON.parse(JSON.stringify(PLAN_OPT));   /* 03.10.2026: за замовчуванням — рівний ряд з проходом 1 м */   /* до 03.10: (-7;15.5), (3;25), (13.5;34) */  /* 28.09.2026 ФІНАЛ: притиснуто до річкової межі, проїзд 6,5 м */  /* 28.09.2026: крок 12 м після врахування рельєфу на 400 м; 4-й на (-13.3;8.9) */
 
 /* ---------------- геометрія столу (НСФЗ-М5К2х8-П30-4100) ---------------- */
 var TILT=30, SLOPE=4.772, TLEN=9.219, H0=0.647;
+var RAIL=9.30;   /* прогони 9 300 мм (креслення) — габарит стола для тіні й відступів; панелі 9 219 мм */
 var DEPTH=SLOPE*Math.cos(TILT*Math.PI/180);        /* 4,13 м по землі  */
 var DTOP=H0+SLOPE*Math.sin(TILT*Math.PI/180);      /* 3,03 м верх      */
 var PDC=16*625, KCAL=0.7803, GAMMA=-0.0028;   /* LONGi Hi-MO 7 LR8-66HGD-625M (HPDC, двосторонні): γ −0,28 %/°C */
@@ -233,7 +234,7 @@ var PILES=[0,2.7,5.4,8.1], PILEROW=2.6;
 function frame(az){ var a=az*Math.PI/180; return {f:[Math.sin(a),Math.cos(a)], s:[Math.cos(a),-Math.sin(a)]}; }
 function tableCorners(t){                     /* кути площини панелей, 3D */
   var fr=frame(t.az), c=Math.cos(TILT*Math.PI/180), s=Math.sin(TILT*Math.PI/180), o=[];
-  [[-TLEN/2,0],[TLEN/2,0],[TLEN/2,SLOPE],[-TLEN/2,SLOPE]].forEach(function(p){
+  [[-RAIL/2,0],[RAIL/2,0],[RAIL/2,SLOPE],[-RAIL/2,SLOPE]].forEach(function(p){
     o.push([t.x+fr.s[0]*p[0]-fr.f[0]*p[1]*c, t.y+fr.s[1]*p[0]-fr.f[1]*p[1]*c, ground(t.x,t.y)+H0+p[1]*s]);
   });
   return o;
@@ -295,7 +296,7 @@ function hitsTable(p,sun,t){
   var q=[p[0]+sun[0]*k, p[1]+sun[1]*k, p[2]+sun[2]*k];
   var du=(q[0]-o[0])*fr.s[0]+(q[1]-o[1])*fr.s[1];
   var dv=((q[0]-o[0])*(-fr.f[0])+(q[1]-o[1])*(-fr.f[1]))/ct;
-  return du>=-TLEN/2 && du<=TLEN/2 && dv>=0 && dv<=SLOPE;
+  return du>=-RAIL/2 && du<=RAIL/2 && dv>=0 && dv<=SLOPE;
 }
 function hitsTree(p,sun,tr){
   if(tr.cut) return false;
@@ -1960,10 +1961,10 @@ document.getElementById("reset").onclick=function(){
 };
 try{ var s0=JSON.parse(localStorage.getItem(KEY)||"null");
      if(s0&&s0.plot){ state.plot=s0.plot; state.trees=s0.trees||[]; state.tables=s0.tables; if(s0.buildings) state.buildings=s0.buildings; } }catch(e){}
-try{ if(!localStorage.getItem("solar.row2.applied")){
+try{ if(!localStorage.getItem("solar.row3.applied")){
        state.tables=JSON.parse(JSON.stringify(PLAN_OPT));
        state.plot=DEF_PLOT.map(function(p){return toXY(p[0],p[1]);});
-       localStorage.setItem("solar.row2.applied","1"); localStorage.setItem("solar.row.applied","1"); localStorage.setItem("solar.planv4.applied","1");
+       localStorage.setItem("solar.row3.applied","1"); localStorage.setItem("solar.row2.applied","1"); localStorage.setItem("solar.row.applied","1"); localStorage.setItem("solar.planv4.applied","1");
        try{ localStorage.setItem(KEY,JSON.stringify(state)); }catch(e){}
      } }catch(e){}
 fillCorridorSelect(); phUI(); draw(); drawCanopy(); shadows(); drawCorridor();
