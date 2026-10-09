@@ -15,7 +15,12 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:14px/1
 button{font:inherit;font-size:13px;background:#222836;color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px 9px;cursor:pointer}
 button.on{background:var(--sun);color:#1a1405;border-color:var(--sun);font-weight:600}
 #info{position:fixed;right:10px;bottom:10px;width:340px;max-width:calc(100vw - 20px);background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:none}
-#info b{color:var(--sun)} #info .x{float:right;cursor:pointer;color:var(--dim)}
+#info b{color:var(--sun)}
+.pan{position:fixed;right:10px;top:10px;width:380px;max-width:calc(100vw - 20px);max-height:calc(100vh - 20px);overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:none;z-index:5}
+.pan .x{float:right;cursor:pointer;color:var(--dim)} #stephead{font-weight:700;font-size:15px;margin-bottom:4px} #stephead span{color:var(--sun)}
+#spectab table{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:6px} #spectab td,#spectab th{border-bottom:1px solid var(--line);padding:4px 4px;text-align:left;vertical-align:top}
+#spectab tr.r{cursor:pointer} #spectab tr.r:hover,#spectab tr.on{background:#2b2a14} #spectab td.n{text-align:right;white-space:nowrap} #spectab tr.h td{color:var(--sun);font-weight:600;padding-top:8px}
+@media(max-width:760px){.pan{top:auto;bottom:10px;left:10px;width:auto;max-height:52vh}} #info .x{float:right;cursor:pointer;color:var(--dim)}
 .lays label{display:flex;gap:6px;align-items:center;font-size:12.5px;margin:2px 0;cursor:pointer}
 #burger{display:none}
 @media(max-width:760px){#ui{width:auto;right:10px;max-height:45vh}#info{left:10px;width:auto}#ui.min .body{display:none}#burger{display:inline-block;float:right}}
@@ -27,6 +32,7 @@ body.shot #ui,body.shot #info{display:none}
 <div id="ui"><button id="burger">☰</button><h1>Стіл НСФЗ-М5К2×8-П30 у 3D</h1>
  <div class="body">
  <div class="sub">За кресленням «Елементи кріплення». Торкніться будь-якої деталі — побачите, що це, де стоїть і куди дивиться; після цього сцена обертається навколо неї. Тягніть — обертання, колесо/два пальці — масштаб, права кнопка/три пальці — зсув.</div>
+ <div class="row"><button id="btnsteps" style="background:#52c07a;color:#06210f;border-color:#52c07a;font-weight:600">Порядок монтажу</button><button id="btnspec" style="background:#4aa3ff;color:#06121f;border-color:#4aa3ff;font-weight:600">Специфікація</button></div>
  <div class="row"><button data-v="iso">загальний</button><button data-v="front">з півдня</button><button data-v="back">з півночі</button><button data-v="side">збоку (зі сходу)</button><button data-v="top">згори</button><button data-v="pile">паля + стійка</button><button data-v="joint">вузол кроква–стійка</button></div>
  <div class="lays">
   <label><input type="checkbox" data-g="panels" checked> панелі</label>
@@ -40,6 +46,9 @@ body.shot #ui,body.shot #info{display:none}
  <div class="sub" style="margin-top:8px"><b style="color:var(--ink)">Головне про профілі.</b> Усі стійки й консолі — С-профіль: спинка (стінка з пазами) стоїть уздовж північ–південь, тобто <b>поперек</b> ряду паль; полички відкриті <b>на схід</b>. Консоль сидить усередині стійки, болти через обидві спинки. Кроква прикручена спинкою до спинки стійки, з західного боку. <a href="map.html#piles" style="color:var(--sun)">Координати паль</a> · <a href="./" style="color:var(--sun)">3D ділянки</a></div>
  </div>
 </div>
+<div id="steps" class="pan"><span class="x" onclick="closePan()">✕</span><div id="stephead"></div><div id="steptxt"></div>
+ <div class="row" style="margin:8px 0 0"><button id="stprev">◀ назад</button><button id="stnext">далі ▶</button><button id="stall">показати все</button></div></div>
+<div id="spec" class="pan"><span class="x" onclick="closePan()">✕</span><b>Специфікація стола</b> <span class="sub">(креслення НСФЗ-М5К2х8-П30-4100 МК, маса 733 кг). Натисніть рядок — деталі підсвітяться в моделі.</span><div id="spectab"></div></div>
 <div id="info"><span class="x" onclick="hideInfo()">✕</span><div id="infotxt"></div><div class="row" style="margin:8px 0 0"><button id="focusbtn">навести на деталь (наблизити)</button></div></div>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
@@ -123,13 +132,13 @@ var nPile=0;
 [[ZF,"передня"],[ZR,"задня"]].forEach(function(row,ri){
   PX.forEach(function(x,k){
     var n=ri*4+k+1;
-    var pm=new THREE.Mesh(new THREE.CylinderGeometry(0.15,0.15,1.0,28),mPile); pm.position.set(x,-0.5,row[0]); pm.castShadow=true;
-    pm.userData.info="<b>Паля "+n+"</b> ("+row[1]+" "+(k+1)+") — бетон C16/20 ø300, глибина 1000 мм (поз. 15). Верх бетону = нульова відмітка 0,000. "+
+    var pm=new THREE.Mesh(new THREE.CylinderGeometry(0.15,0.15,1.07,28),mPile); pm.position.set(x,-0.535,row[0]); pm.castShadow=true;
+    pm.userData.info="<b>Паля "+n+"</b> ("+row[1]+" "+(k+1)+") — бетон C16/20 ø300, глибина 1,05–1,10 м (консоль 1180 мм: 1000 у бетоні + ≥5 см бетону під нею), поз. 15. Верх бетону = нульова відмітка 0,000. "+
       (ri? "Задній (північний) ряд.":"Передній (південний) ряд.")+" Палі 1–4 / 5–8 нумеруються зі сходу на захід.";
     G.piles.add(pm); pickables.push(pm);
     /* консоль: 1000 мм, у бетоні ~820, над бетоном ~180; спинка на заході, полички на схід */
-    var c=cProfile(new THREE.Vector3(x-0.048,-0.82,row[0]),UP,1.0,EAST,NS,0.093,0.038,0.010,0.002,mCons,
-      "<b>Закладна консоль, поз. 11</b> (палі "+n+") — C93×38×10×2, L 1000 мм. ~820 мм у бетоні, ~180 мм над ним. "+
+    var c=cProfile(new THREE.Vector3(x-0.048,-1.0,row[0]),UP,1.18,EAST,NS,0.093,0.038,0.010,0.002,mCons,
+      "<b>Закладна консоль, поз. 11</b> (палі "+n+") — C93×38×10×2, фактично L 1180 мм (у кресленні 1000): 1000 мм у бетоні, 180 мм над верхом бетону — як на кресленні. Під низом консолі має лишитися ≥5 см бетону: бурити 1,05–1,10 м. "+
       "<b>Спинка</b> (стінка з пазами) — у площині північ–південь, <b>полички відкриті на СХІД</b>. Стійка надівається зверху, консоль опиняється всередині стійки; 2 болти M10 через обидві спинки + 1 у свердлений отвір ø10.",G.piles,SL_CONS);
     label(String(n),new THREE.Vector3(x+0.30,0.35,row[0]+0.30),"#f5c518",0.22);
   });
@@ -239,7 +248,7 @@ function bolt(p,axis,info){
   label("полички → СХІД",new THREE.Vector3(x+0.62,y+0.06,0),"#f5c518",0.065);
   var ar2=new THREE.ArrowHelper(new THREE.Vector3(0,0,1),new THREE.Vector3(x-0.05,0.45,-0.05),0.35,0x9fe29f,0.08,0.05); G.labels.add(ar2);
   label("спинка уздовж Пн–Пд",new THREE.Vector3(x-0.30,0.40,0.42),"#9fe29f",0.06);
-  label("консоль 1000 мм: ~820 у бетоні",new THREE.Vector3(x-0.45,-0.45,0.2),"#cbd3df",0.06);
+  label("консоль 1180 мм: 1000 у бетоні, 180 над",new THREE.Vector3(x-0.45,-0.45,0.2),"#cbd3df",0.06);
 })();
 /* підписи сторін світу й деталей */
 label("ПІВДЕНЬ ↓ (низ панелей)",new THREE.Vector3(0,0.05,2.6),"#9fe29f",0.34);
@@ -289,6 +298,86 @@ var Q=new URLSearchParams(location.search);
 if(Q.get("hide")) Q.get("hide").split(",").forEach(function(k){ if(G[k]) G[k].visible=false; var c=document.querySelector('[data-g="'+k+'"]'); if(c) c.checked=false; });
 if(Q.get("ui")==="0") document.body.classList.add("shot");
 setView(Q.get("view")||"iso");
+/* ---------- позиції специфікації для кожної деталі ---------- */
+var POS={};
+scene.traverse(function(o){
+  var info=o.userData&&o.userData.info; if(!info) return;
+  if(o.isMesh&&o.userData.part) return;           /* частина складеної деталі — рахуємо групу */
+  var m=/поз\. (\d+)/.exec(info), p=m?+m[1]:(/^<b>Панель/.test(info)?3:null);
+  if(/^<b>Болт|Болт консоль|Болти кроква|Кріплення прогону/.test(info.replace(/<[^>]+>/g,"").trim()) || /DIN 933/.test(info)&&!/поз\. 1[0-5]/.test(info.split("Болт M10")[0])) p=16;
+  if(p==null) return; o.userData.pos=p; (POS[p]=POS[p]||[]).push(o);
+});
+/* панелі — це сітки без групи, решта — групи */
+var multiSel=[];
+function clearMulti(){ multiSel.forEach(unhl); multiSel=[]; }
+function hlMany(list){ clearMulti(); list.forEach(function(o){ hl(o); multiSel.push(o); }); }
+function centerOn(list){ if(!list.length) return; var bb=new THREE.Box3(); list.forEach(function(o){ bb.expandByObject(o); }); ctl.target.copy(bb.getCenter(new THREE.Vector3())); cam.up.set(0,1,0); ctl.update(); }
+function showOnly(set){ Object.keys(POS).forEach(function(p){ POS[p].forEach(function(o){ o.visible=set===null||set.indexOf(+p)>=0; }); }); }
+function closePan(){ document.querySelectorAll(".pan").forEach(function(e){ e.style.display="none"; }); clearMulti(); showOnly(null); }
+/* ---------- специфікація ---------- */
+var SPEC=[["h","Складальні одиниці"],
+ [1,"Z30inbM8x30цMFP","Притиск Z30 (крайній), гайка-сухар, фіксатор",8],
+ [2,"П30inbM8x30цMFP","Притиск П30 (середній), гайка-сухар, фіксатор",28],
+ [3,"ФЕМ 2382×1134×30","Панель сонячна",16],
+ ["h","Деталі"],
+ [4,"G41×72×9×8×2-1d-1400","G-прогін монтажний L=1400",4],
+ [5,"G41×72×9×8×2-1d-2300","G-прогін монтажний L=2300",4],
+ [6,"G41×72×9×8×2-1d-5600","G-прогін монтажний L=5600",4],
+ [7,"U38×27,5×2-3400","Розкіс каркасу з пазами",4],
+ [8,"U48×72×2,5-1d-200","З’єднувач з пазами для G41×72",8],
+ [9,"C41×35×7×1,5-200","Перехідник розпірки з отв. і пазом (у моделі — разом із розпіркою)",4],
+ [10,"C41×35×7×1,5-1450","Розпірка рами з отв. d12",4],
+ [11,"C93×38×10×2 (факт. 1180)","Закладна консоль стійки з пазами",8],
+ [12,"C100×45×10×2-1000","Стійка низька з пазами",4],
+ [13,"C100×45×10×2-2500","Стійка висока з отв. і пазами",4],
+ [14,"C100×45×10×2-4100","Кроква L=4100 з пазом і отв.",4],
+ [15,"СБ300.400-1000","Бетон C16/20-M250, ≈0,075 м³ на палю",8],
+ ["h","Стандартні вироби (у моделі — комплектами)"],
+ [16,"M10×25 DIN 933 + DIN 125 + DIN 7980 + DIN 6923","Болт + шайба плоска + шайба пружинна + гайка з фланцем (поз. 16–19)",112]];
+(function(){
+  var h='<table><tr><th>поз.</th><th>назва</th><th class="n">к-сть</th></tr>';
+  SPEC.forEach(function(r){
+    if(r[0]==="h"){ h+='<tr class="h"><td colspan="3">'+r[1]+'</td></tr>'; return; }
+    var inModel=(POS[r[0]]||[]).length;
+    h+='<tr class="r" data-p="'+r[0]+'"><td>'+r[0]+(r[0]===16?'–19':'')+'</td><td>'+r[2]+'<br><span class="sub">'+r[1]+'</span></td><td class="n">'+r[3]+
+       (inModel&&inModel!==r[3]&&r[0]!==16&&r[0]!==9?'<br><span class="sub">у моделі '+inModel+'</span>':'')+'</td></tr>';
+  });
+  document.getElementById("spectab").innerHTML=h+'</table>';
+  document.querySelectorAll("#spectab tr.r").forEach(function(tr){ tr.onclick=function(){
+    document.querySelectorAll("#spectab tr.r").forEach(function(t){ t.classList.remove("on"); }); tr.classList.add("on");
+    var p=+tr.dataset.p, list=(POS[p]||[]).concat(p===9?(POS[10]||[]):[]); showOnly(null); hlMany(list); centerOn(list); }; });
+})();
+/* ---------- порядок монтажу ---------- */
+var STEPS=[
+ {t:"Розмітка й буріння",p:[],v:"top",d:"Винесіть 8 паль за <a href='map.html#piles' style='color:#f5c518'>координатами</a>: 4 передні (1–4) і 4 задні (5–8), крок 2,70 м уздовж, 2,60 м між рядами, діагональ 3,748 м. Бур ø300, глибина <b>1,05–1,10 м</b> (консоль 1180 мм: 1000 мм у бетоні + ≥5 см бетону під нею)."},
+ {t:"Закладні консолі й бетон",p:[15,11],v:"pile",d:"Першими — закладні (поз. 11). На дно — 5 см бетону, далі консоль <b>спинкою вздовж північ–південь, полички на СХІД</b> — однаково в усіх 8 палях. Виставити по рівню й лазеру: над верхом бетону рівно 180 мм, верх бетону всіх паль в одній площині (нульова відмітка 0,000). Залити бетон C16/20 (поз. 15), ~0,075 м³ на палю. Далі монтувати не раніше ніж через 5–7 діб."},
+ {t:"Стійки",p:[12,13],v:"side",d:"Надіти стійки на консолі (консоль заходить усередину стійки): передні низькі L1000 (поз. 12), задні високі L2500 (поз. 13), так само <b>полички на схід</b>. Виставити по висоті: верх низьких <b>+1,028</b>, високих <b>+2,529</b> від верху бетону. Затягнути 2 болти в пази, потім просвердлити отвір ø10 там, де немає паза, і поставити третій болт (вузол М)."},
+ {t:"Крокви",p:[14],v:"joint",d:"Кроква L4100 (поз. 14) — до спинки стійок <b>з західного боку, спинка до спинки</b>, полички кроквy на захід. По 2 болти на вузол (К), болти мають упертися в низ пазів стійки. Нижній кінець кроквy виступає за низьку стійку, верхній — за високу."},
+ {t:"Розпірки й розкоси",p:[9,10,7],v:"back",d:"Розпірка рами (поз. 10) з перехідником (поз. 9) — від високої стійки до кроквy, перехідник опустити так, щоб болт був найближче до низу паза (вузол Л, Е-Е). Розкоси (поз. 7) — хрестом між високими стійками 5–6 і 7–8 з північного боку (вузол Н)."},
+ {t:"Прогони",p:[4,5,6,8],v:"iso",d:"4 лінії G-прогонів поперек кроков на <b>476 / 1906 / 2866 / 4296 мм</b> від нижнього краю панелей уздовж схилу. Кожна лінія — сегменти 2300 + 5600 + 1400 (поз. 5, 6, 4), стики з’єднувачами U48 (поз. 8). Загальна довжина 9300 мм, звис за панелі 40/41 мм."},
+ {t:"Перевірка й затяжка",p:[16],v:"iso",d:"Перевірте діагоналі рами, площину прогонів (шнуром) і вертикальність стійок. Усі болти M10 (поз. 16–19) — момент <b>9–10 Н·м</b>, 112 комплектів на стіл."},
+ {t:"Нижній ряд панелей",p:[3,1,2],only:"low",v:"front",d:"8 панелей нижнього ряду портретно, шов між панелями 20–21 мм. Крайні притиски Z30 (поз. 1) на торцях, середні П30 (поз. 2) у швах — по одному на кожну лінію прогону."},
+ {t:"Верхній ряд панелей",p:[3,1,2],v:"iso",d:"8 панелей верхнього ряду, шов між рядами 8 мм. Притиски так само. Стіл готовий: 16 панелей, 10 кВт."},
+ {t:"Кабелі й заземлення",p:[3,1,2],v:"back",d:"Ланцюг із 16 панелей «підковою»: верхній ряд в один бік, перемичка вниз на краю стола, нижній ряд назад — обидва кінці ланцюга на одному боці. Кабель по прогону в гофрі з УФ-захистом до виходу з землі між палями 2 і 3. Рама стола — одна ціла (перемички ПуВ 6 мм² між прогонами й стійками), мідь ПуВ 16 мм² від катанки до рами."}];
+var stepI=0;
+function cum(i){ var a=[]; for(var k=0;k<=i;k++) STEPS[k].p.forEach(function(p){ if(a.indexOf(p)<0) a.push(p); }); return a; }
+function showStep(i){
+  stepI=Math.max(0,Math.min(STEPS.length-1,i)); var S=STEPS[stepI];
+  document.getElementById("stephead").innerHTML="Крок <span>"+(stepI+1)+" з "+STEPS.length+"</span>: "+S.t;
+  document.getElementById("steptxt").innerHTML=S.d;
+  var set=cum(stepI); showOnly(set);
+  if(S.only==="low"){ (POS[3]||[]).forEach(function(o){ o.visible=/Нижній ряд/.test(o.userData.info); }); }
+  if(stepI===0){ (POS[15]||[]).concat(POS[11]||[]).forEach(function(o){ o.visible=false; }); }
+  var fresh=[]; S.p.forEach(function(p){ (POS[p]||[]).forEach(function(o){ if(o.visible) fresh.push(o); }); });
+  ["panels","rails","frame","piles","hw","labels"].forEach(function(g){ G[g].visible=true; });
+  setView(S.v); hlMany(fresh);
+}
+document.getElementById("btnsteps").onclick=function(){ closePan(); document.getElementById("steps").style.display="block"; hideInfo(); showStep(0); };
+document.getElementById("btnspec").onclick=function(){ closePan(); document.getElementById("spec").style.display="block"; hideInfo(); };
+document.getElementById("stprev").onclick=function(){ showStep(stepI-1); };
+document.getElementById("stnext").onclick=function(){ showStep(stepI+1); };
+document.getElementById("stall").onclick=function(){ closePan(); setView("iso"); };
+
 addEventListener("resize",function(){ cam.aspect=innerWidth/innerHeight; cam.updateProjectionMatrix(); ren.setSize(innerWidth,innerHeight); });
 (function loop(){ requestAnimationFrame(loop); ctl.update(); ren.render(scene,cam); })();
 </script>
