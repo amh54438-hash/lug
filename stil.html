@@ -32,6 +32,7 @@ body.shot #ui,body.shot #info{display:none}
   <label><input type="checkbox" data-g="panels" checked> панелі</label>
   <label><input type="checkbox" data-g="rails" checked> прогони</label>
   <label><input type="checkbox" data-g="frame" checked> каркас (стійки, крокви, розкоси)</label>
+  <label><input type="checkbox" data-g="hw" checked> кріплення (болти, притиски, з’єднувачі)</label>
   <label><input type="checkbox" data-g="piles" checked> палі й консолі</label>
   <label><input type="checkbox" data-g="labels" checked> підписи</label>
   <label><input type="checkbox" data-g="ground" checked> земля (зніміть, щоб побачити палі в бетоні)</label>
@@ -58,7 +59,7 @@ scene.add(new THREE.HemisphereLight(0xdfe8ff,0x5a5040,.95));
 var fill=new THREE.DirectionalLight(0xffffff,.45); fill.position.set(-5,6,-10); scene.add(fill);
 var sun=new THREE.DirectionalLight(0xffffff,.85); sun.position.set(6,12,9); sun.castShadow=true; sun.shadow.mapSize.set(2048,2048);
 var sc=sun.shadow.camera; sc.left=-9; sc.right=9; sc.top=9; sc.bottom=-9; scene.add(sun);
-var G={}; ["panels","rails","frame","piles","labels","ground"].forEach(function(k){ G[k]=new THREE.Group(); scene.add(G[k]); });
+var G={}; ["panels","rails","frame","piles","labels","ground","hw"].forEach(function(k){ G[k]=new THREE.Group(); scene.add(G[k]); });
 var pickables=[];
 /* земля */
 var gnd=new THREE.Mesh(new THREE.PlaneGeometry(40,30),new THREE.MeshStandardMaterial({color:0x6b5a44,roughness:1,side:THREE.DoubleSide}));
@@ -71,13 +72,37 @@ function cShape(h,b,l,t){
   s.lineTo(t,H-t); s.lineTo(b-t,H-t); s.lineTo(b-t,H-l); s.lineTo(b,H-l); s.lineTo(b,H); s.lineTo(0,H); s.lineTo(0,-H);
   return s;
 }
-/* профіль уздовж вектора dir (одиничний) довжиною L; open — куди дивляться полички; web — напрямок уздовж спинки */
-function cProfile(p0,dir,L,open,web,h,b,l,t,mat,info,group){
-  var g=new THREE.ExtrudeGeometry(cShape(h,b,l,t),{depth:L,bevelEnabled:false});
-  var m=new THREE.Mesh(g,mat); m.castShadow=true; m.receiveShadow=true;
+/* Текстура пазів (біле — метал, чорне — отвір). Клітинка = один крок пазів; повторюється вздовж профілю. Розміри в мм. */
+var TEXC={};
+function slotTex(widthMM,sp){
+  var key=widthMM+"|"+JSON.stringify(sp); if(TEXC[key]) return TEXC[key];
+  var k=4, cv=document.createElement("canvas"); cv.width=Math.round(widthMM*k); cv.height=Math.round(sp.pitch*k);
+  var g=cv.getContext("2d"); g.fillStyle="#fff"; g.fillRect(0,0,cv.width,cv.height); g.fillStyle="#000";
+  sp.cols.forEach(function(c){ var cx=(widthMM/2+c)*k, cy=cv.height/2, w=sp.w*k, l=sp.l*k, r=w/2;
+    g.beginPath(); g.moveTo(cx-r,cy-l/2+r); g.arc(cx,cy-l/2+r,r,Math.PI,0); g.lineTo(cx+r,cy+l/2-r); g.arc(cx,cy+l/2-r,r,0,Math.PI); g.closePath(); g.fill(); });
+  var t=new THREE.CanvasTexture(cv); t.wrapS=THREE.ClampToEdgeWrapping; t.wrapT=THREE.RepeatWrapping; TEXC[key]=t; return t;
+}
+/* пази на спинках (з креслення: поз. 11/12/13 «з пазами» — дві колонки пазів 50 мм одна від одної; поз. 14 «з пазом і отв.»; G-прогін — паз по центру під притиски; U-розкіс — паз по центру) */
+var SL_STAND={cols:[-25,25],w:11,l:30,pitch:50}, SL_CONS={cols:[-25,25],w:11,l:30,pitch:50},
+    SL_RAF={cols:[0],w:11,l:30,pitch:100}, SL_RAIL={cols:[0],w:9,l:25,pitch:50}, SL_BR={cols:[0],w:9,l:22,pitch:50};
+/* профіль уздовж dir довжиною L; open — куди дивляться полички; web — напрямок уздовж спинки. Збирається з пластин: спинка (з пазами), 2 полички, 2 загини */
+function cProfile(p0,dir,L,open,web,h,b,l,t,mat,info,group,slots){
   var U=new THREE.Vector3().copy(open).normalize(), V=new THREE.Vector3().copy(web).normalize(), W=new THREE.Vector3().copy(dir).normalize();
-  var M=new THREE.Matrix4().makeBasis(U,V,W); M.setPosition(p0); m.applyMatrix4(M);
-  m.userData.info=info; group.add(m); pickables.push(m); return m;
+  var part=new THREE.Group(); part.userData.info=info; part.userData.isPart=true;
+  function plate(width,cu,cv,axis,normal,tex){
+    var m2=mat;
+    if(tex){ m2=mat.clone(); var tx=tex.clone(); tx.needsUpdate=true; tx.repeat.set(1,L/(slots.pitch/1000)); m2.alphaMap=tx; m2.alphaTest=0.5; }
+    var g=new THREE.PlaneGeometry(width,L), m=new THREE.Mesh(g,m2);
+    var A=axis==="u"?U:V, N=normal==="u"?U:V;
+    var M=new THREE.Matrix4().makeBasis(A,W,N);
+    var c=p0.clone().add(U.clone().multiplyScalar(cu)).add(V.clone().multiplyScalar(cv)).add(W.clone().multiplyScalar(L/2));
+    M.setPosition(c); m.applyMatrix4(M); m.castShadow=true; m.receiveShadow=true; m.userData.part=part; part.add(m); pickables.push(m);
+  }
+  var H=h/2;
+  plate(h,0,0,"v","u",slots?slotTex(h*1000,slots):null);   /* спинка */
+  plate(b,b/2,-H,"u","v"); plate(b,b/2,H,"u","v");          /* полички */
+  if(l>0){ plate(l,b,-H+l/2,"v","u"); plate(l,b,H-l/2,"v","u"); }   /* загини */
+  group.add(part); return part;
 }
 function box(p,size,mat,info,group,rotX){
   var m=new THREE.Mesh(new THREE.BoxGeometry(size[0],size[1],size[2]),mat); m.position.copy(p); if(rotX) m.rotation.x=rotX;
@@ -105,7 +130,7 @@ var nPile=0;
     /* консоль: 1000 мм, у бетоні ~820, над бетоном ~180; спинка на заході, полички на схід */
     var c=cProfile(new THREE.Vector3(x-0.048,-0.82,row[0]),UP,1.0,EAST,NS,0.093,0.038,0.010,0.002,mCons,
       "<b>Закладна консоль, поз. 11</b> (палі "+n+") — C93×38×10×2, L 1000 мм. ~820 мм у бетоні, ~180 мм над ним. "+
-      "<b>Спинка</b> (стінка з пазами) — у площині північ–південь, <b>полички відкриті на СХІД</b>. Стійка надівається зверху, консоль опиняється всередині стійки; 2 болти M10 через обидві спинки + 1 у свердлений отвір ø10.",G.piles);
+      "<b>Спинка</b> (стінка з пазами) — у площині північ–південь, <b>полички відкриті на СХІД</b>. Стійка надівається зверху, консоль опиняється всередині стійки; 2 болти M10 через обидві спинки + 1 у свердлений отвір ø10.",G.piles,SL_CONS);
     label(String(n),new THREE.Vector3(x+0.30,0.35,row[0]+0.30),"#f5c518",0.22);
   });
 });
@@ -113,7 +138,7 @@ var nPile=0;
 function stand(x,z,top,L,kind,n){
   return cProfile(new THREE.Vector3(x-0.05,top-L,z),UP,L,EAST,NS,0.100,0.045,0.010,0.002,mStand,
     "<b>"+kind+"</b> над палею "+n+" — C100×45×10×2, L "+Math.round(L*1000)+" мм, верх на відмітці +"+top.toFixed(3).replace(".",",")+". "+
-    "<b>Спинка</b> — у площині північ–південь (поперек ряду паль), <b>полички на СХІД</b>. Надівається на консоль; виставити по висоті, затягнути 3 болти M10 (2 у пази + 1 у свердлений отвір ø10).",G.frame);
+    "<b>Спинка</b> — у площині північ–південь (поперек ряду паль), <b>полички на СХІД</b>. Надівається на консоль; виставити по висоті, затягнути 3 болти M10 (2 у пази + 1 у свердлений отвір ø10).",G.frame,SL_STAND);
 }
 PX.forEach(function(x,k){ stand(x,ZF,1.028,1.0,"Стійка низька, поз. 12",k+1); stand(x,ZR,2.529,2.5,"Стійка висока, поз. 13",k+5); });
 /* ---------- панелі, прогони, крокви: площина під 30° ---------- */
@@ -136,7 +161,7 @@ for(var r=0;r<2;r++) for(var c=0;c<8;c++){
     var p=onPlane(sg[0],s,0.0);
     cProfile(new THREE.Vector3(sg[0],p.y,p.z),WEST,sg[1],NRM.clone().negate(),SL,0.041,0.072,0.012,0.002,mRail,
       "<b>Прогін "+(i+1)+"</b> (знизу вгору), сегмент "+sg[2]+" — G41×72×9×8×2. Лежить на кроквах поперек них, уздовж ряду (схід–захід). "+
-      "Лінія "+["1","2","3","4"][i]+": "+Math.round(s*1000)+" мм від нижнього краю панелей уздовж схилу. Сегменти з’єднані з’єднувачами U48×72 L200 (поз. 8). Загальна довжина 9300 мм: звис 40 мм за крайні панелі.",G.rails);
+      "Лінія "+["1","2","3","4"][i]+": "+Math.round(s*1000)+" мм від нижнього краю панелей уздовж схилу. Сегменти з’єднані з’єднувачами U48×72 L200 (поз. 8). Загальна довжина 9300 мм: звис 40 мм за крайні панелі.",G.rails,SL_RAIL);
   });
 });
 /* крокви C100×45 L4100 (поз. 14): 336 мм від нижнього краю панелей, під прогонами; із західного боку стійок, спинка до спинки */
@@ -145,7 +170,7 @@ PX.forEach(function(x,k){
   var depthDir=NRM.clone().negate();
   var top=onPlane(x,0.336,0.122);   /* вісь кроквy рівно через верх стійок: +1,028 і +2,529 */
   cProfile(new THREE.Vector3(x-0.052,top.y,top.z),SL,4.1,WEST,depthDir,0.100,0.045,0.010,0.002,mRaf,
-    "<b>Кроква, поз. 14</b> над палями "+(k+1)+" і "+(k+5)+" — C100×45×10×2, L 4100 мм, під 30°. Прикручена до бічної стінки (спинки) низької й високої стійки <b>спинка до спинки</b>, із <b>західного</b> боку стійок; <b>полички кроквy — на ЗАХІД</b>. Болти в низ пазів стійки (вузол К).",G.frame);
+    "<b>Кроква, поз. 14</b> над палями "+(k+1)+" і "+(k+5)+" — C100×45×10×2, L 4100 мм, під 30°. Прикручена до бічної стінки (спинки) низької й високої стійки <b>спинка до спинки</b>, із <b>західного</b> боку стійок; <b>полички кроквy — на ЗАХІД</b>. Болти в низ пазів стійки (вузол К).",G.frame,SL_RAF);
 });
 /* розпірки C41×35 L1450 (поз. 10): від високої стійки (~+1,0) до кроквy */
 PX.forEach(function(x,k){
@@ -160,8 +185,53 @@ PX.forEach(function(x,k){
     var a=new THREE.Vector3(q[0],q[1],ZR-0.06), b=new THREE.Vector3(q[2],q[3],ZR-0.06);
     var dir=b.clone().sub(a); var L=dir.length(); dir.normalize();
     cProfile(a,dir,L,new THREE.Vector3(0,0,-1),new THREE.Vector3().crossVectors(new THREE.Vector3(0,0,-1),dir).normalize(),0.038,0.0275,0.0,0.002,mBr,
-      "<b>Розкіс, поз. 7</b> — U38×27,5×2, L 3400 мм. Хрест у задній площині між високими стійками над палями "+(pr[0]+5)+" і "+(pr[1]+5)+" (з північного боку). Тримає стіл від хитання вздовж ряду.",G.frame);
+      "<b>Розкіс, поз. 7</b> — U38×27,5×2, L 3400 мм. Хрест у задній площині між високими стійками над палями "+(pr[0]+5)+" і "+(pr[1]+5)+" (з північного боку). Тримає стіл від хитання вздовж ряду.",G.frame,SL_BR);
   });
+});
+/* ---------- кріплення: болти, притиски, з'єднувачі ---------- */
+var mBolt=new THREE.MeshStandardMaterial({color:0x6f7782,metalness:.7,roughness:.35}), mClamp=steel(0xd9dde2);
+var BOLT_INFO="<b>Болт M10×25 DIN 933</b> + шайба плоска DIN 125 + шайба пружинна DIN 7980 + гайка з фланцем DIN 6923 (поз. 16–19). Момент затяжки 9–10 Н·м. Усього на стіл 112 комплектів.";
+function bolt(p,axis,info){
+  var grp=new THREE.Group(); grp.userData.info=info||BOLT_INFO;
+  var A=axis.clone().normalize(), q=new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,1,0),A);
+  [[0.009,0.006,0.012,6],[0.005,0.005,0.045,12],[0.010,0.010,0.008,6]].forEach(function(d,i){
+    var m=new THREE.Mesh(new THREE.CylinderGeometry(d[0],d[1],d[2],d[3]),mBolt); m.quaternion.copy(q);
+    var off=[-0.02,0,0.024][i]; m.position.copy(p).add(A.clone().multiplyScalar(off)); m.userData.part=grp; grp.add(m); pickables.push(m);
+  });
+  G.hw.add(grp); return grp;
+}
+/* консоль ↔ стійка: 2 болти в пази + 1 у свердлений отвір (вузол М), вісь болтів — схід–захід через спинки */
+[[ZF,1.028,1.0],[ZR,2.529,2.5]].forEach(function(r){ PX.forEach(function(x){
+  bolt(new THREE.Vector3(x-0.05,0.06,r[0]-0.025),EAST,"<b>Болт консоль–стійка (вузол М)</b>: 2 болти M10 у пази стійки й консолі, 50 мм один від одного, + 1 болт у свердлений отвір ø10 там, де немає паза (фіксує висоту). "+BOLT_INFO);
+  bolt(new THREE.Vector3(x-0.05,0.12,r[0]+0.025),EAST);
+  bolt(new THREE.Vector3(x-0.05,0.155,r[0]-0.025),EAST);
+}); });
+/* кроква ↔ стійка: 2 болти (вузол К) — 50 мм по горизонталі, 29+33 по висоті */
+[[ZF,1.028],[ZR,2.529]].forEach(function(r){ PX.forEach(function(x){
+  bolt(new THREE.Vector3(x-0.05,r[1]-0.035,r[0]-0.025),EAST,"<b>Болти кроква–стійка (вузол К)</b>: 2 × M10, через спинки кроквy і стійки; болти мають упертися в низ пазів стійки. "+BOLT_INFO);
+  bolt(new THREE.Vector3(x-0.05,r[1]+0.03,r[0]+0.025),EAST);
+}); });
+/* прогін ↔ кроква: 1 болт на перетині (вузол Р/Ф), вісь — по нормалі до площини панелей */
+[0.476,1.906,2.866,4.296].forEach(function(s){ PX.forEach(function(x){
+  bolt(onPlane(x-0.075,s,0.05),NRM,"<b>Кріплення прогону до кроквy</b> (вузли Р, Ф): болт M10 з шайбами й фланцевою гайкою, через паз прогону й паз кроквy. "+BOLT_INFO);
+}); });
+/* з'єднувачі прогонів U48×72 L200 (поз. 8): на стиках сегментів, 2 стики × 4 лінії = 8 */
+[0.476,1.906,2.866,4.296].forEach(function(s,i){ [2.35,-3.25].forEach(function(xj){
+  var grp=new THREE.Group(); grp.userData.info="<b>З’єднувач прогонів, поз. 8</b> — U48×72×2,5, L 200 мм, з пазами. Охоплює стик двох сегментів G-прогону, по 2 болти M10 на кожен бік (вузол Ц/Ж). Лінія прогону "+(i+1)+".";
+  var c=onPlane(xj,s,0.036), m=new THREE.Mesh(new THREE.BoxGeometry(0.2,0.05,0.078),mClamp);
+  m.position.copy(c); m.rotation.x=TILT; m.userData.part=grp; grp.add(m); pickables.push(m); G.hw.add(grp);
+}); });
+/* притиски панелей: середні П30 (28 шт.) у швах між панелями, крайні Z30 (8 шт.) на торцях рядів; по одному на кожну лінію прогону */
+[0.476,1.906,2.866,4.296].forEach(function(s,i){
+  for(var c=0;c<=8;c++){
+    var x=4.6095-c*(1.134+0.021)+(c===0?0.0:0.0105)-(c===8?0.0105:0);
+    var edge=(c===0||c===8), grp=new THREE.Group();
+    grp.userData.info=edge? "<b>Притиск крайній Z30, поз. 1</b> — затискає крайню панель ряду до G-прогону. Болт M8×30 з гайкою-сухарем у прогоні. 8 шт. на стіл (по 2 на лінію прогону)."
+                          : "<b>Притиск середній П30, поз. 2</b> — у шві 20–21 мм між двома панелями, тримає обидві. Болт M8×30 з гайкою-сухарем у прогоні. 28 шт. на стіл (7 на лінію прогону).";
+    var p=onPlane(edge?(c===0?4.6095+0.02:-4.6095-0.02):x,s,-0.032);
+    var m=new THREE.Mesh(new THREE.BoxGeometry(edge?0.03:0.045,0.012,0.045),mClamp); m.position.copy(p); m.rotation.x=TILT;
+    m.userData.part=grp; grp.add(m); pickables.push(m); G.hw.add(grp);
+  }
 });
 /* підказка орієнтації профілю на палі 1 */
 (function(){ var x=PX[0], y=0.62;
@@ -178,16 +248,18 @@ label("СХІД →",new THREE.Vector3(6.0,0.05,-1.3),"#9fe29f",0.34);
 label("← ЗАХІД",new THREE.Vector3(-6.0,0.05,-1.3),"#9fe29f",0.34);
 /* ---------- інфо по кліку ---------- */
 var ray=new THREE.Raycaster(), mouse=new THREE.Vector2(), sel=null, down=null;
-function hideInfo(){ document.getElementById("info").style.display="none"; if(sel){ sel.material=sel.userData.mat0; sel=null; }
+function unhl(p){ (p.isGroup?p.children:[p]).forEach(function(m){ if(m.userData.mat0){ m.material=m.userData.mat0; } }); }
+function hl(p){ (p.isGroup?p.children:[p]).forEach(function(m){ if(!m.material) return; m.userData.mat0=m.userData.mat0||m.material; var hm=m.userData.mat0.clone(); hm.emissive=new THREE.Color(0xf5c518); hm.emissiveIntensity=.55; m.material=hm; }); }
+function hideInfo(){ document.getElementById("info").style.display="none"; if(sel){ unhl(sel); sel=null; }
 }
 ren.domElement.addEventListener("pointerdown",function(e){ down=[e.clientX,e.clientY]; });
 ren.domElement.addEventListener("pointerup",function(e){
   if(!down||Math.hypot(e.clientX-down[0],e.clientY-down[1])>6) return;
   mouse.x=e.clientX/innerWidth*2-1; mouse.y=-e.clientY/innerHeight*2+1; ray.setFromCamera(mouse,cam);
-  var hits=ray.intersectObjects(pickables.filter(function(o){ var p=o.parent; return p.visible; }),false);
+  var hits=ray.intersectObjects(pickables.filter(function(o){ for(var q=o;q;q=q.parent){ if(!q.visible) return false; } return true; }),false);
   if(!hits.length){ hideInfo(); return; }
-  var o=hits[0].object; if(sel){ sel.material=sel.userData.mat0; }
-  o.userData.mat0=o.userData.mat0||o.material; var hm=o.material.clone(); hm.emissive=new THREE.Color(0xf5c518); hm.emissiveIntensity=.55; o.material=hm; sel=o;
+  var o=hits[0].object; if(o.userData.part) o=o.userData.part; if(sel) unhl(sel);
+  hl(o); sel=o;
   document.getElementById("infotxt").innerHTML=o.userData.info; document.getElementById("info").style.display="block";
   /* обрана деталь стає центром обертання: камера лишається на місці, пальцем крутимо навколо деталі */
   var c=new THREE.Box3().setFromObject(o).getCenter(new THREE.Vector3());
@@ -212,6 +284,7 @@ function setView(k){ var v=VIEWS[k]; if(!v) return;
 document.querySelectorAll("[data-v]").forEach(function(b){ b.onclick=function(){ setView(b.dataset.v); }; });
 document.querySelectorAll("[data-g]").forEach(function(c){ c.onchange=function(){ G[c.dataset.g].visible=c.checked; }; });
 document.getElementById("burger").onclick=function(){ document.getElementById("ui").classList.toggle("min"); };
+if(innerWidth<=760) document.getElementById("ui").classList.add("min");
 var Q=new URLSearchParams(location.search);
 if(Q.get("hide")) Q.get("hide").split(",").forEach(function(k){ if(G[k]) G[k].visible=false; var c=document.querySelector('[data-g="'+k+'"]'); if(c) c.checked=false; });
 if(Q.get("ui")==="0") document.body.classList.add("shot");
