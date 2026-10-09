@@ -26,7 +26,7 @@ body.shot #ui,body.shot #info{display:none}
 <div id="cv"></div>
 <div id="ui"><button id="burger">☰</button><h1>Стіл НСФЗ-М5К2×8-П30 у 3D</h1>
  <div class="body">
- <div class="sub">За кресленням «Елементи кріплення». Торкніться будь-якої деталі — побачите, що це, де стоїть і куди дивиться. Тягніть — обертання, колесо/два пальці — масштаб, права кнопка/три пальці — зсув.</div>
+ <div class="sub">За кресленням «Елементи кріплення». Торкніться будь-якої деталі — побачите, що це, де стоїть і куди дивиться; після цього сцена обертається навколо неї. Тягніть — обертання, колесо/два пальці — масштаб, права кнопка/три пальці — зсув.</div>
  <div class="row"><button data-v="iso">загальний</button><button data-v="front">з півдня</button><button data-v="back">з півночі</button><button data-v="side">збоку (зі сходу)</button><button data-v="top">згори</button><button data-v="pile">паля + стійка</button><button data-v="joint">вузол кроква–стійка</button></div>
  <div class="lays">
   <label><input type="checkbox" data-g="panels" checked> панелі</label>
@@ -39,7 +39,7 @@ body.shot #ui,body.shot #info{display:none}
  <div class="sub" style="margin-top:8px"><b style="color:var(--ink)">Головне про профілі.</b> Усі стійки й консолі — С-профіль: спинка (стінка з пазами) стоїть уздовж північ–південь, тобто <b>поперек</b> ряду паль; полички відкриті <b>на схід</b>. Консоль сидить усередині стійки, болти через обидві спинки. Кроква прикручена спинкою до спинки стійки, з західного боку. <a href="map.html#piles" style="color:var(--sun)">Координати паль</a> · <a href="./" style="color:var(--sun)">3D ділянки</a></div>
  </div>
 </div>
-<div id="info"><span class="x" onclick="hideInfo()">✕</span><div id="infotxt"></div><div class="row" style="margin:8px 0 0"><button id="focusbtn">навести на деталь</button><button id="spinbtn">⟳ обертати навколо деталі</button></div></div>
+<div id="info"><span class="x" onclick="hideInfo()">✕</span><div id="infotxt"></div><div class="row" style="margin:8px 0 0"><button id="focusbtn">навести на деталь (наблизити)</button></div></div>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 <script>
@@ -179,7 +179,7 @@ label("← ЗАХІД",new THREE.Vector3(-6.0,0.05,-1.3),"#9fe29f",0.34);
 /* ---------- інфо по кліку ---------- */
 var ray=new THREE.Raycaster(), mouse=new THREE.Vector2(), sel=null, down=null;
 function hideInfo(){ document.getElementById("info").style.display="none"; if(sel){ sel.material=sel.userData.mat0; sel=null; }
-  if(typeof spinning!=="undefined" && spinning){ spinning=false; ctl.autoRotate=false; var b=document.getElementById("spinbtn"); b.textContent="⟳ обертати навколо деталі"; b.classList.remove("on"); } }
+}
 ren.domElement.addEventListener("pointerdown",function(e){ down=[e.clientX,e.clientY]; });
 ren.domElement.addEventListener("pointerup",function(e){
   if(!down||Math.hypot(e.clientX-down[0],e.clientY-down[1])>6) return;
@@ -189,9 +189,11 @@ ren.domElement.addEventListener("pointerup",function(e){
   var o=hits[0].object; if(sel){ sel.material=sel.userData.mat0; }
   o.userData.mat0=o.userData.mat0||o.material; var hm=o.material.clone(); hm.emissive=new THREE.Color(0xf5c518); hm.emissiveIntensity=.55; o.material=hm; sel=o;
   document.getElementById("infotxt").innerHTML=o.userData.info; document.getElementById("info").style.display="block";
+  /* обрана деталь стає центром обертання: камера лишається на місці, пальцем крутимо навколо деталі */
+  var c=new THREE.Box3().setFromObject(o).getCenter(new THREE.Vector3());
+  ctl.target.copy(c); cam.up.set(0,1,0); ctl.update();
 });
 /* фокус і обертання навколо обраної деталі */
-var spinning=false;
 function focusSel(){
   if(!sel) return;
   var bb=new THREE.Box3().setFromObject(sel), c=bb.getCenter(new THREE.Vector3()), sz=bb.getSize(new THREE.Vector3()).length();
@@ -199,11 +201,7 @@ function focusSel(){
   ctl.target.copy(c); cam.position.copy(c.clone().add(dir.multiplyScalar(dist))); cam.up.set(0,1,0); ctl.update();
 }
 document.getElementById("focusbtn").onclick=function(){ focusSel(); };
-document.getElementById("spinbtn").onclick=function(){
-  if(!sel) return; if(!spinning) focusSel();
-  spinning=!spinning; ctl.autoRotate=spinning; ctl.autoRotateSpeed=4;
-  this.textContent=spinning?"⏸ зупинити обертання":"⟳ обертати навколо деталі"; this.classList.toggle("on",spinning);
-};
+
 /* ---------- вигляди ---------- */
 var VIEWS={iso:[[8.5,6.5,7.5],[0,1.1,-1.2]], front:[[0,1.7,10.5],[0,1.3,-1.2]], back:[[0,2.2,-12.5],[0,1.3,-1.2]],
   side:[[11,1.6,-1.0],[0,1.3,-1.0]], top:[[0,15,-1.25],[0,0,-1.25]], pile:[[5.0,0.95,1.35],[4.15,0.15,0]], joint:[[5.1,3.05,-1.55],[4.0,2.45,-2.6]]};
