@@ -24,7 +24,7 @@ button.on{background:var(--sun);color:#1a1405;border-color:var(--sun);font-weigh
 .lays label{display:flex;gap:6px;align-items:center;font-size:12.5px;margin:2px 0;cursor:pointer}
 #burger{display:none}
 @media(max-width:760px){#ui{width:auto;right:10px;max-height:45vh}#info{left:10px;width:auto}#ui.min .body{display:none}#burger{display:inline-block;float:right}}
-body.shot #ui,body.shot #info{display:none}
+body.shot #ui,body.shot #info,body.shot .pan{display:none!important}
 </style>
 </head>
 <body>
@@ -349,7 +349,7 @@ var SPEC=[["h","Складальні одиниці"],
 })();
 /* ---------- порядок монтажу ---------- */
 var STEPS=[
- {t:"Розмітка й буріння",p:[],v:"top",d:"Винесіть 8 паль за <a href='map.html#piles' style='color:#f5c518'>координатами</a>: 4 передні (1–4) і 4 задні (5–8), крок 2,70 м уздовж, 2,60 м між рядами, діагональ 3,748 м. Бур ø300, глибина <b>1,05–1,10 м</b> (консоль 1180 мм: 1000 мм у бетоні + ≥5 см бетону під нею)."},
+ {t:"Розмітка й буріння",p:[15],v:"iso",d:"Винесіть 8 паль за <a href='map.html#piles' style='color:#f5c518'>координатами</a>: 4 передні (1–4) і 4 задні (5–8), крок 2,70 м уздовж, 2,60 м між рядами, діагональ 3,748 м. Бур ø300, глибина <b>1,05–1,10 м</b> (консоль 1180 мм: 1000 мм у бетоні + ≥5 см бетону під нею)."},
  {t:"Закладні консолі й бетон",p:[15,11],v:"pile",d:"Першими — закладні (поз. 11). На дно — 5 см бетону, далі консоль <b>спинкою вздовж північ–південь, полички на СХІД</b> — однаково в усіх 8 палях. Виставити по рівню й лазеру: над верхом бетону рівно 180 мм, верх бетону всіх паль в одній площині (нульова відмітка 0,000). Залити бетон C16/20 (поз. 15), ~0,075 м³ на палю. Далі монтувати не раніше ніж через 5–7 діб."},
  {t:"Стійки",p:[12,13],v:"side",d:"Надіти стійки на консолі (консоль заходить усередину стійки): передні низькі L1000 (поз. 12), задні високі L2500 (поз. 13), так само <b>полички на схід</b>. Виставити по висоті: верх низьких <b>+1,028</b>, високих <b>+2,529</b> від верху бетону. Затягнути 2 болти в пази, потім просвердлити отвір ø10 там, де немає паза, і поставити третій болт (вузол М)."},
  {t:"Крокви",p:[14],v:"joint",d:"Кроква L4100 (поз. 14) — до спинки стійок <b>з західного боку, спинка до спинки</b>, полички кроквy на захід. По 2 болти на вузол (К), болти мають упертися в низ пазів стійки. Нижній кінець кроквy виступає за низьку стійку, верхній — за високу."},
@@ -367,7 +367,6 @@ function showStep(i){
   document.getElementById("steptxt").innerHTML=S.d;
   var set=cum(stepI); showOnly(set);
   if(S.only==="low"){ (POS[3]||[]).forEach(function(o){ o.visible=/Нижній ряд/.test(o.userData.info); }); }
-  if(stepI===0){ (POS[15]||[]).concat(POS[11]||[]).forEach(function(o){ o.visible=false; }); }
   var fresh=[]; S.p.forEach(function(p){ (POS[p]||[]).forEach(function(o){ if(o.visible) fresh.push(o); }); });
   ["panels","rails","frame","piles","hw","labels"].forEach(function(g){ G[g].visible=true; });
   setView(S.v); hlMany(fresh);
@@ -377,6 +376,7 @@ document.getElementById("btnspec").onclick=function(){ closePan(); document.getE
 document.getElementById("stprev").onclick=function(){ showStep(stepI-1); };
 document.getElementById("stnext").onclick=function(){ showStep(stepI+1); };
 document.getElementById("stall").onclick=function(){ closePan(); setView("iso"); };
+if(Q.get("step")){ document.getElementById("steps").style.display="block"; showStep(+Q.get("step")-1); }
 
 addEventListener("resize",function(){ cam.aspect=innerWidth/innerHeight; cam.updateProjectionMatrix(); ren.setSize(innerWidth,innerHeight); });
 (function loop(){ requestAnimationFrame(loop); ctl.update(); ren.render(scene,cam); })();
