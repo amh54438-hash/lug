@@ -144,7 +144,7 @@ function canopy(x,y){
 var PLOT=[[12.46, 45.29], [26.4, 32.2], [-15.3, -4.7], [-23.5, 10.1], [-20.86, 22.03]];   /* 03.10: бік річки = початок схилу, 1,30 м за А–Г */
 var LAYOUTS={
   v4:{name:"план v4", t:[{x:8.12,y:34.43},{x:-0.12,y:28.68},{x:-8.35,y:22.93}], kwh:"29 590 кВт·год/рік + ~1 700 задня сторона ≈ 31 300 (межі лицевої 27 690–30 680)"},
-  opt:{name:"ряд", t:[{"x":8.24,"y":34.51},{"x":-2.06,"y":27.32},{"x":-12.36,"y":20.13}], kwh:"≈31 700 кВт·год/рік з задньою стороною"},
+  opt:{name:"ряд", t:[{"x":8.24,"y":34.51},{"x":-2.06,"y":27.32},{"x":-11.7876,"y":19.3101}], kwh:"≈31 500 кВт·год/рік з задньою стороною (стіл 3 на 1 м від А–Г)"},
   free:{name:"вільна", t:[{"x":10.13,"y":27.44},{"x":-0.03,"y":28.88},{"x":-10.12,"y":20.62}], kwh:"30 240 кВт·год/рік + ~1 730 задня сторона ≈ 32 000 (межі лицевої 29 520–30 870)"}};
 var TABLES=LAYOUTS.v4.t.slice();   /* план v4, 03.10.2026; оптимальна — за 8 точками фото, 03.10.2026 */
 var RECT=[[10.23,42.14],[15.95,33.94],[-8.65,16.77],[-14.37,24.97]];   /* А Б В Г */
@@ -381,8 +381,16 @@ n0=scene.children.length;
 (function(){
   var p=RECT.concat([RECT[0]]).map(function(q){ return new THREE.Vector3(q[0], ground(q[0],q[1])+0.3, -q[1]); });
   scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(p), new THREE.LineBasicMaterial({color:0xff9f43})));
-  var ag=[RECT[0],RECT[3]].map(function(q){ return new THREE.Vector3(q[0], ground(q[0],q[1])+0.32, -q[1]); });
+  /* 11.10.2026: А–Г до кілка на 37 м + шнур стола 3 на 1,00 м від А–Г (відступ від обриву) */
+  var ux=[(RECT[3][0]-RECT[0][0])/30,(RECT[3][1]-RECT[0][1])/30], uy=[(RECT[1][0]-RECT[0][0])/10,(RECT[1][1]-RECT[0][1])/10];
+  function PQ(X,Y,dz){ var x=RECT[0][0]+X*ux[0]+Y*uy[0], y=RECT[0][1]+X*ux[1]+Y*uy[1]; return new THREE.Vector3(x, ground(x,y)+dz, -y); }
+  var ag=[]; for(var X=0;X<=37;X+=1) ag.push(PQ(X,0,0.32));
   scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(ag), new THREE.LineBasicMaterial({color:0x4aa3ff})));
+  var s3=[]; for(var X3=24;X3<=37;X3+=1) s3.push(PQ(X3,1,0.33));
+  var l3=new THREE.Line(new THREE.BufferGeometry().setFromPoints(s3), new THREE.LineDashedMaterial({color:0xffd34a,dashSize:0.5,gapSize:0.4}));
+  l3.computeLineDistances(); scene.add(l3);
+  var k37=label3d("кілок 37 м","#8cc8ff"); k37.position.copy(PQ(37,0,1.6)); scene.add(k37);
+  var k3=label3d("шнур стола 3: 1 м від А–Г","#ffd34a"); k3.position.copy(PQ(35,2.2,1.2)); scene.add(k3);
   ["А","Б","В","Г"].forEach(function(nm,i){ var q=RECT[i]; var sp=label3d(nm,"#ffcf8a"); sp.position.set(q[0], ground(q[0],q[1])+1.6, -q[1]); scene.add(sp); });
 })();
 grab("rect",n0);

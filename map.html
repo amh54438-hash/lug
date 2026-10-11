@@ -218,7 +218,7 @@ var DEF_TREES=[
 var PLAN_V4={"rect": [[10.226, 42.143], [15.95, 33.944], [-8.648, 16.77], [-14.372, 24.969]], "names": ["А (0;0)", "Б (0;10)", "В (30;10)", "Г (30;0)"], "tables": [{"x": 8.12, "y": 34.43, "az": 180}, {"x": -0.12, "y": 28.68, "az": 180}, {"x": -8.35, "y": 22.93, "az": 180}], "piles": [[4.11, 35.28], [6.81, 35.27], [6.82, 37.87], [9.51, 35.27], [9.52, 37.87], [12.21, 35.27], [12.21, 37.86], [-4.12, 29.53], [-1.42, 29.53], [-1.42, 32.12], [1.28, 29.52], [1.28, 32.12], [3.98, 29.52], [3.98, 32.12], [-12.35, 23.78], [-9.65, 23.78], [-9.65, 26.38], [-6.95, 23.77], [-6.95, 26.38], [-4.25, 23.77], [-4.25, 26.37], [4.12, 37.88], [-4.12, 32.13], [-12.35, 26.38]]};
 /* Ряд (03.10.2026): усі задні ніжки на лінії А–Г, однаковий крок 12,5 м від X=4 м; між столами з півдня на північ прохід 1,03 м.
    Реалістично 29 890 кВт·год/рік (байпас 30 696, жорсткий 28 801) проти v4 29 585. */
-var PLAN_OPT=[{x:8.24,y:34.51,az:180},{x:-2.06,y:27.32,az:180},{x:-12.36,y:20.13,az:180}];   /* 04.10.2026: ряд X = 6 / 18,56 / 31,12 м, крок 12,56 — 1,00 м між ПРОГОНАМИ (9,30 м) сусідніх столів; 31 695 кВт·год/рік */
+var PLAN_OPT=[{x:8.24,y:34.51,az:180},{x:-2.06,y:27.32,az:180},{x:-11.7876,y:19.3101,az:180}];   /* 11.10.2026: стіл 3 на 1,00 м від А–Г (край обриву), X без змін; 31 516 кВт·год/рік */   /* 04.10.2026: ряд X = 6 / 18,56 / 31,12 м, крок 12,56 — 1,00 м між ПРОГОНАМИ (9,30 м) сусідніх столів; 31 695 кВт·год/рік */
 /* Вільна розстановка (столи врозкид, теж без перекриття з півдня): 30 242 — максимум для цієї ділянки без зрізання. */
 var PLAN_FREE=[{x:10.13,y:27.44,az:180},{x:-0.03,y:28.88,az:180},{x:-10.12,y:20.62,az:180}];
 var DEF_TABLES=JSON.parse(JSON.stringify(PLAN_OPT));   /* 03.10.2026: за замовчуванням — рівний ряд з проходом 1 м */   /* до 03.10: (-7;15.5), (3;25), (13.5;34) */  /* 28.09.2026 ФІНАЛ: притиснуто до річкової межі, проїзд 6,5 м */  /* 28.09.2026: крок 12 м після врахування рельєфу на 400 м; 4-й на (-13.3;8.9) */
@@ -880,8 +880,17 @@ function drawPlan(){
   if(!window.gPlan) return; gPlan.clearLayers();
   var R=PLAN_V4.rect;
   L.polygon(R.map(function(p){return toLL(p[0],p[1]);}),{color:"#ff9f43",weight:2,fill:false}).addTo(gPlan);
-  L.polyline([toLL(R[0][0],R[0][1]),toLL(R[3][0],R[3][1])],{color:"#4aa3ff",weight:4,opacity:.9}).addTo(gPlan)
-   .bindTooltip("А–Г: бік річки, вісь крайніх задніх ніжок; верхня кромка столів виходить за неї на 0,91 м, початок схилу ще за 1,30 м");
+  /* 11.10.2026: А–Г продовжено до кілка на 37 м; пунктир — шнур стола 3 на 1,00 м від А–Г (відступ від краю обриву) */
+  (function(){ var ux=[(R[3][0]-R[0][0])/30,(R[3][1]-R[0][1])/30], uy=[(R[1][0]-R[0][0])/10,(R[1][1]-R[0][1])/10];
+    function Q(X,Y){ return toLL(R[0][0]+X*ux[0]+Y*uy[0], R[0][1]+X*ux[1]+Y*uy[1]); }
+    L.polyline([Q(0,0),Q(37,0)],{color:"#4aa3ff",weight:4,opacity:.9}).addTo(gPlan)
+     .bindTooltip("А–Г до 37 м: бік річки, вісь крайніх задніх ніжок столів 1 і 2; початок схилу ще за 1,30 м");
+    L.circleMarker(Q(37,0),{radius:4,color:"#4aa3ff",weight:2,fillColor:"#10131a",fillOpacity:1,interactive:false}).addTo(gPlan);
+    L.marker(Q(37,0),{interactive:false,icon:L.divIcon({className:"",iconSize:[0,0],
+      html:'<div style="transform:translate(-50%,-130%);white-space:nowrap;font:600 12px -apple-system,sans-serif;color:#8cc8ff;text-shadow:0 0 3px #000,0 0 3px #000">кілок 37 м</div>'})}).addTo(gPlan);
+    L.polyline([Q(24,1),Q(37,1)],{color:"#ffd34a",weight:3,opacity:.95,dashArray:"6 6"}).addTo(gPlan)
+     .bindTooltip("Шнур стола 3: паралельно А–Г на 1,00 м до хати; паля 3.8 на X 32,43 / Y 1,00; до брівки схилу 2,30 м");
+  })();
   R.forEach(function(p,i){
     L.marker(toLL(p[0],p[1]),{interactive:false,icon:L.divIcon({className:"",iconSize:[0,0],
       html:'<div style="transform:translate(-50%,-130%);white-space:nowrap;font:600 12px -apple-system,sans-serif;color:#ffcf8a;text-shadow:0 0 3px #000,0 0 3px #000">'+PLAN_V4.names[i]+'</div>'})}).addTo(gPlan);
@@ -928,13 +937,16 @@ function pileRows(ti){
 }
 var PS={i:0};
 function f2(v){ return v.toFixed(2).replace(".",","); }
+/* 11.10.2026: фактичне положення. Стіл 2 збудовано з палею 2.8 на X 19,90 (план 19,87) → +0,03 по X; планові цифри лишаються, фактичні в дужках */
+var FACT_DX={1:0.03};
+function fX(p){ var ti=parseInt(p.id,10)-1, d=FACT_DX[ti]; return f2(p.X)+(d?' <span style="color:#7ee08a">('+f2(p.X+d)+')</span>':''); }
 /* простий винос шнурами: 4 кутові палі → 2 шнури → по 2,70 м */
 function stringMethod(rows){
   function g(n){ return rows.filter(function(p){return p.n===n;})[0]; }
   function d(a,b){ return Math.hypot(a.x-b.x,a.y-b.y); }
   var p1=g(1),p4=g(4),p5=g(5),p8=g(8); if(!p1||!p4||!p5||!p8) return "";
   var id=function(p){return '<b style="color:var(--sun)">'+p.id+'</b>';};
-  var xy=function(p){return id(p)+' (X '+f2(p.X)+'; Y '+f2(p.Y)+')';};
+  var xy=function(p){return id(p)+' (X '+fX(p)+'; Y '+f2(p.Y)+')';};
   return '<div class="pcard" style="margin-top:14px"><div class="h"><b style="font-size:15px;color:var(--ink)">Простий спосіб: дві лінії шнура</b></div>'+
    '<ol style="margin:8px 0 0 18px;padding:0;font-size:13.5px;line-height:1.55">'+
    '<li>Від шнура А–Г рулеткою винеси лише <b>4 кутові палі</b>: '+xy(p1)+', '+xy(p4)+', '+xy(p5)+', '+xy(p8)+'. Забий арматуру.</li>'+
@@ -979,10 +991,10 @@ function openPiles(i){
       '<text x="'+cx0+'" y="'+(cy0-8)+'" text-anchor="middle" font-size="9" fill="#98a3b4">А</text>'; })();
   svg+='</svg>';
   var tb='<table><tr><th>№</th><th>паля</th><th class="n">X від А, м</th><th class="n">Y від А–Г, м</th></tr>';
-  rows.forEach(function(p){ tb+='<tr><td class="id">'+p.id+'</td><td>'+p.name+'</td><td class="n">'+f2(p.X)+'</td><td class="n">'+f2(p.Y)+'</td></tr>'; });
+  rows.forEach(function(p){ tb+='<tr><td class="id">'+p.id+'</td><td>'+p.name+'</td><td class="n">'+fX(p)+'</td><td class="n">'+f2(p.Y)+'</td></tr>'; });
   tb+='</table><div class="pcards">';
   rows.forEach(function(p){ tb+='<div class="pcard"><div class="h"><b>'+p.id+'</b><span>'+p.name+'</span></div>'+
-    '<div class="xy"><div>'+f2(p.X)+'<small>X від А вздовж шнура, м</small></div><div>'+f2(p.Y)+'<small>Y від шнура до хати, м</small></div></div>'+
+    '<div class="xy"><div>'+fX(p)+'<small>X від А вздовж шнура, м</small></div><div>'+f2(p.Y)+'<small>Y від шнура до хати, м</small></div></div>'+
     '</div>'; });
   tb+='</div>';
   var onLine=rows.filter(function(p){return Math.abs(p.Y)<0.05;}).map(function(p){return p.id;});
@@ -992,6 +1004,8 @@ function openPiles(i){
     '<div class="hint" style="margin-top:10px"><b>Як виносити:</b> X — рулеткою від точки А вздовж шнура А→Г (мінус — за А, у бік північно-східного кінця); '+
     'Y — під прямим кутом від шнура в бік хати (кут — трикутником 3-4-5 м).'+(onLine.length?' Паля <b>'+onLine.join(", ")+'</b> стоїть рівно на шнурі А–Г.':'')+
     '<br><b>Перевірка:</b> уздовж ряду 2,70 м між палями, між рядами 2,60 м, діагональ прямокутника з 4 паль 3,748 м (як у кресленні).</div>'+
+    (FACT_DX[PS.i]?'<div class="hint" style="margin-top:8px;color:#7ee08a"><b>У дужках — фактично:</b> стіл '+(PS.i+1)+' збудовано з палею '+(PS.i+1)+'.8 на X 19,90 (план 19,87), тобто всі X цього стола +0,03 м; Y без змін.</div>':'')+
+    (PS.i===2?'<div class="hint" style="margin-top:8px;color:#ffd34a"><b>Стіл 3 відсунуто на 1,00 м від А–Г</b> (край обриву): паля 3.8 на X 32,43 / Y 1,00, до брівки схилу 2,30 м. Натягни другий шнур паралельно А–Г на 1,00 м до хати (жовтий пунктир на карті) і виноси від нього як від А–Г; X лишаються ті самі.</div>':'')+
     stringMethod(rows);
   document.getElementById("pilesheet").hidden=false;
   var mob=innerWidth<=760;
@@ -1001,8 +1015,8 @@ document.getElementById("psclose").onclick=function(){ document.getElementById("
 document.getElementById("psprev").onclick=function(){ openPiles(PS.i-1); };
 document.getElementById("psnext").onclick=function(){ openPiles(PS.i+1); };
 document.getElementById("pscsv").onclick=function(){
-  var lines=["стіл;№;паля;X від А, м;Y від А–Г, м;широта;довгота"];
-  state.tables.forEach(function(t,ti){ pileRows(ti).forEach(function(p){ lines.push([ti+1,p.id,p.name,f2(p.X),f2(p.Y),p.lat.toFixed(7),p.lon.toFixed(7)].join(";")); }); });
+  var lines=["стіл;№;паля;X від А, м;X фактично, м;Y від А–Г, м;широта;довгота"];
+  state.tables.forEach(function(t,ti){ pileRows(ti).forEach(function(p){ lines.push([ti+1,p.id,p.name,f2(p.X),FACT_DX[ti]?f2(p.X+FACT_DX[ti]):"",f2(p.Y),p.lat.toFixed(7),p.lon.toFixed(7)].join(";")); }); });
   var a=document.createElement("a"); a.href=URL.createObjectURL(new Blob(["﻿"+lines.join("\n")],{type:"text/csv"})); a.download="pali.csv"; a.click();
 };
 function plabZoom(){ var c=document.getElementById("map"); if(c) c.classList.toggle("lowzoom", map.getZoom()<20); }
@@ -1961,10 +1975,10 @@ document.getElementById("reset").onclick=function(){
 };
 try{ var s0=JSON.parse(localStorage.getItem(KEY)||"null");
      if(s0&&s0.plot){ state.plot=s0.plot; state.trees=s0.trees||[]; state.tables=s0.tables; if(s0.buildings) state.buildings=s0.buildings; } }catch(e){}
-try{ if(!localStorage.getItem("solar.row3.applied")){
+try{ if(!localStorage.getItem("solar.row4.applied")){
        state.tables=JSON.parse(JSON.stringify(PLAN_OPT));
        state.plot=DEF_PLOT.map(function(p){return toXY(p[0],p[1]);});
-       localStorage.setItem("solar.row3.applied","1"); localStorage.setItem("solar.row2.applied","1"); localStorage.setItem("solar.row.applied","1"); localStorage.setItem("solar.planv4.applied","1");
+       localStorage.setItem("solar.row4.applied","1"); localStorage.setItem("solar.row3.applied","1"); localStorage.setItem("solar.row2.applied","1"); localStorage.setItem("solar.row.applied","1"); localStorage.setItem("solar.planv4.applied","1");
        try{ localStorage.setItem(KEY,JSON.stringify(state)); }catch(e){}
      } }catch(e){}
 fillCorridorSelect(); phUI(); draw(); drawCanopy(); shadows(); drawCorridor();
